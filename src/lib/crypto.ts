@@ -94,7 +94,7 @@ export async function applyEncoderTransform(
   key: CryptoKey
 ): Promise<void> {
   try {
-    const { readable, writable } = await sender.createEncodedStreams()
+    const { readable, writable } = await (sender as any).createEncodedStreams()
     const transformer = createEncoderTransform(key)
     readable.pipeThrough(transformer).pipeTo(writable)
   } catch (error) {
@@ -107,7 +107,7 @@ export async function applyDecoderTransform(
   key: CryptoKey
 ): Promise<void> {
   try {
-    const { readable, writable } = await receiver.createEncodedStreams()
+    const { readable, writable } = await (receiver as any).createEncodedStreams()
     const transformer = createDecoderTransform(key)
     readable.pipeThrough(transformer).pipeTo(writable)
   } catch (error) {

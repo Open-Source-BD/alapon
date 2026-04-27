@@ -5,13 +5,12 @@ import {
   push,
   onDisconnect,
   remove,
-  DatabaseReference,
   serverTimestamp,
+  child,
 } from 'firebase/database'
 import {
   roomRef,
   participantRef,
-  signalingRef,
   offerRef,
   answerRef,
   offerCandidatesRef,
@@ -56,7 +55,7 @@ export function useSignaling(
         })
 
         // Listen for other participants
-        const participantsRef = roomRef(roomId).child('participants')
+        const participantsRef = child(roomRef(roomId), 'participants')
         const unsubParticipants = onValue(
           participantsRef,
           (snapshot) => {
@@ -99,7 +98,7 @@ export function useSignaling(
   ): void {
     const offerRefPath = offerRef(roomId, localUid, remoteUid)
 
-    const unsubOffer = onValue(
+    onValue(
       offerRefPath,
       (snapshot) => {
         const data = snapshot.val()
@@ -115,7 +114,7 @@ export function useSignaling(
 
     // Also listen for answer from remote
     const answerRefPath = answerRef(roomId, remoteUid, localUid)
-    const unsubAnswer = onValue(
+    onValue(
       answerRefPath,
       (snapshot) => {
         const data = snapshot.val()
@@ -135,7 +134,7 @@ export function useSignaling(
       remoteUid,
       localUid
     )
-    const unsubAnswerCandidates = onValue(
+    onValue(
       answerCandidatesRefPath,
       (snapshot) => {
         const candidates = snapshot.val() || {}
@@ -159,7 +158,7 @@ export function useSignaling(
   ): void {
     const offerRefPath = offerRef(roomId, remoteUid, localUid)
 
-    const unsubOffer = onValue(
+    onValue(
       offerRefPath,
       (snapshot) => {
         const data = snapshot.val()
@@ -179,7 +178,7 @@ export function useSignaling(
       remoteUid,
       localUid
     )
-    const unsubOfferCandidates = onValue(
+    onValue(
       offerCandidatesRefPath,
       (snapshot) => {
         const candidates = snapshot.val() || {}

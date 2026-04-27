@@ -6,10 +6,9 @@ const SPEAKER_CHANGE_DEBOUNCE = 3 // Require 3 consecutive polls above threshold
 
 export function useActiveSpeaker() {
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const speakerChangeCounterRef = useRef<Map<string, number>>(new Map())
 
-  const peers = useMeetingStore((s) => s.peers)
   const setActiveSpeaker = useMeetingStore((s) => s.setActiveSpeaker)
 
   // Register peer connections (to be called from useWebRTC)

@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
-import { getDatabase, Database, ref, DatabaseReference } from 'firebase/database'
+import { getDatabase, ref } from 'firebase/database'
+import type { DatabaseReference } from 'firebase/database'
 import { nanoid } from 'nanoid'
 
 const firebaseConfig = {

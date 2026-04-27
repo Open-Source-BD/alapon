@@ -3,7 +3,8 @@ import { nanoid } from 'nanoid'
 import { getIceServers } from '@/lib/iceServers'
 import { applyEncoderTransform, applyDecoderTransform } from '@/lib/crypto'
 import { useMeetingStore } from '@/store/meetingStore'
-import { useSignaling, SignalingCallbacks } from './useSignaling'
+import { useSignaling } from './useSignaling'
+import type { SignalingCallbacks } from './useSignaling'
 
 interface PeerConnection {
   pc: RTCPeerConnection
@@ -28,54 +29,12 @@ export function useWebRTC(roomId: string | null) {
   const setPeerStream = useMeetingStore((s) => s.setPeerStream)
   const addChatMessage = useMeetingStore((s) => s.addChatMessage)
 
-  const signalingMethods = useSignaling(
-    roomId,
-    useCallback<SignalingCallbacks>(
-      {
-        onPeerJoined: (uid: string, name: string) => {
-          addPeer(uid, name)
-
-          if (localUid < uid) {
-            // We're the offerer
-            initiateCall(uid)
-          }
-        },
-
-        onPeerLeft: (uid: string) => {
-          hangupPeer(uid)
-        },
-
-        onOffer: (fromUid: string, sdp: RTCSessionDescriptionInit) => {
-          handleOffer(fromUid, sdp)
-        },
-
-        onAnswer: (fromUid: string, sdp: RTCSessionDescriptionInit) => {
-          handleAnswer(fromUid, sdp)
-        },
-
-        onIceCandidate: (fromUid: string, candidate: RTCIceCandidateInit) => {
-          handleIceCandidate(fromUid, candidate)
-        },
-      },
-      [
-        addPeer,
-        localUid,
-        localStream,
-        encryptionKey,
-        addChatMessage,
-        removePeer,
-        updatePeer,
-        setPeerStream,
-      ]
-    )
-  )
-
   const createPeerConnection = useCallback(
     (remoteUid: string): RTCPeerConnection => {
       const pc = new RTCPeerConnection({
         iceServers: getIceServers(),
         encodedInsertableStreams: true,
-      })
+      } as any)
 
       // Add local tracks
       if (localStream) {
@@ -103,9 +62,9 @@ export function useWebRTC(roomId: string | null) {
 
       // ICE candidates
       pc.onicecandidate = (event) => {
-        if (event.candidate && signalingMethods) {
+        if (event.candidate) {
           const isAnswer = remoteOfferStateRef.current.get(remoteUid)
-          signalingMethods.sendCandidate(
+          signalingMethods?.sendCandidate(
             remoteUid,
             event.candidate,
             isAnswer ?? false
@@ -131,7 +90,7 @@ export function useWebRTC(roomId: string | null) {
 
       return pc
     },
-    [localStream, encryptionKey, setPeerStream, updatePeer, signalingMethods]
+    [localStream, encryptionKey, setPeerStream, updatePeer]
   )
 
   const setupDataChannel = useCallback(
@@ -195,7 +154,7 @@ export function useWebRTC(roomId: string | null) {
         console.error('Failed to initiate call:', error)
       }
     },
-    [createPeerConnection, signalingMethods, setupDataChannel]
+    [createPeerConnection, setupDataChannel]
   )
 
   const handleOffer = useCallback(
@@ -237,7 +196,7 @@ export function useWebRTC(roomId: string | null) {
         console.error('Failed to handle offer:', error)
       }
     },
-    [createPeerConnection, signalingMethods]
+    [createPeerConnection]
   )
 
   const handleAnswer = useCallback(
@@ -314,7 +273,7 @@ export function useWebRTC(roomId: string | null) {
         console.error('Failed ICE restart:', error)
       }
     },
-    [signalingMethods]
+    []
   )
 
   const hangupPeer = useCallback(
@@ -360,6 +319,31 @@ export function useWebRTC(roomId: string | null) {
       })
     },
     [localName, localUid, addChatMessage]
+  )
+
+  // Setup signaling callbacks
+  const signalingMethods = useSignaling(
+    roomId,
+    {
+      onPeerJoined: (uid: string, name: string) => {
+        addPeer(uid, name)
+        if (localUid < uid) {
+          initiateCall(uid)
+        }
+      },
+      onPeerLeft: (uid: string) => {
+        hangupPeer(uid)
+      },
+      onOffer: (fromUid: string, sdp: RTCSessionDescriptionInit) => {
+        handleOffer(fromUid, sdp)
+      },
+      onAnswer: (fromUid: string, sdp: RTCSessionDescriptionInit) => {
+        handleAnswer(fromUid, sdp)
+      },
+      onIceCandidate: (fromUid: string, candidate: RTCIceCandidateInit) => {
+        handleIceCandidate(fromUid, candidate)
+      },
+    } as SignalingCallbacks
   )
 
   // Cleanup on unmount

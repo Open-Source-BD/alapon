@@ -4,7 +4,7 @@ import { useMeetingStore } from '@/store/meetingStore'
 export function useMediaStream() {
   const streamRef = useRef<MediaStream | null>(null)
   const screenStreamRef = useRef<MediaStream | null>(null)
-  const originalVideoTrackRef = useRef<MediaStreamVideoTrack | null>(null)
+  const originalVideoTrackRef = useRef<MediaStreamTrack | null>(null)
 
   const setLocalStream = useMeetingStore((s) => s.setLocalStream)
   const setAudioMuted = useMeetingStore((s) => s.setAudioMuted)
@@ -83,17 +83,19 @@ export function useMediaStream() {
       if (!streamRef.current) return
 
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: 'always' },
+        video: true as any,
         audio: false,
       })
 
       const screenTrack = screenStream.getVideoTracks()[0]
       if (!screenTrack) throw new Error('No screen track')
 
-      originalVideoTrackRef.current = streamRef.current
-        .getVideoTracks()[0] as MediaStreamVideoTrack
+      const originalTrack = streamRef.current.getVideoTracks()[0]
+      if (!originalTrack) throw new Error('No video track')
 
-      streamRef.current.removeTrack(originalVideoTrackRef.current)
+      originalVideoTrackRef.current = originalTrack
+
+      streamRef.current.removeTrack(originalTrack)
       streamRef.current.addTrack(screenTrack)
       screenStreamRef.current = screenStream
       setScreenSharing(true)
