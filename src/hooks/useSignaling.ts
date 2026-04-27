@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   onValue,
   set,
@@ -30,6 +30,9 @@ export function useSignaling(
   roomId: string | null,
   callbacks: SignalingCallbacks
 ) {
+  const callbacksRef = useRef(callbacks)
+  callbacksRef.current = callbacks
+
   const localUid = useMeetingStore((s) => s.localUid)
   const localName = useMeetingStore((s) => s.localName)
 
@@ -37,6 +40,7 @@ export function useSignaling(
     if (!roomId || !localUid) return
 
     let unsubscribes: Array<() => void> = []
+    const processedPeers = new Set<string>()
 
     // Register presence
     const presenceRef = participantRef(roomId, localUid)
@@ -60,21 +64,33 @@ export function useSignaling(
           participantsRef,
           (snapshot) => {
             const participants = snapshot.val() || {}
+            const currentUids = Object.keys(participants)
 
-            // Find new participants
+            // Detect new participants
             Object.entries(participants).forEach(([uid, data]: [string, any]) => {
-              if (uid !== localUid) {
-                callbacks.onPeerJoined(uid, data.name)
+              if (uid !== localUid && !processedPeers.has(uid)) {
+                processedPeers.add(uid)
+                callbacksRef.current.onPeerJoined(uid, data.name)
 
                 // If we have smaller UID, we're the offerer
                 if (localUid < uid) {
-                  setupOfferListener(roomId, localUid, uid)
+                  const unsubs = setupOfferListener(roomId, localUid, uid)
+                  unsubscribes.push(...unsubs)
                 } else {
                   // Otherwise we're the answerer
-                  setupAnswerListener(roomId, localUid, uid)
+                  const unsubs = setupAnswerListener(roomId, localUid, uid)
+                  unsubscribes.push(...unsubs)
                 }
               }
             })
+
+            // Detect departures
+            for (const uid of processedPeers) {
+              if (uid !== localUid && !currentUids.includes(uid)) {
+                processedPeers.delete(uid)
+                callbacksRef.current.onPeerLeft(uid)
+              }
+            }
           },
           { onlyOnce: false }
         )
@@ -89,21 +105,22 @@ export function useSignaling(
       unsubscribes.forEach((unsub) => unsub())
       remove(presenceRef)
     }
-  }, [roomId, localUid, localName, callbacks])
+  }, [roomId, localUid, localName])
 
   function setupOfferListener(
     roomId: string,
     localUid: string,
     remoteUid: string
-  ): void {
-    const offerRefPath = offerRef(roomId, localUid, remoteUid)
+  ): Array<() => void> {
+    const unsubscribes: Array<() => void> = []
 
-    onValue(
+    const offerRefPath = offerRef(roomId, localUid, remoteUid)
+    const unsubOffer = onValue(
       offerRefPath,
       (snapshot) => {
         const data = snapshot.val()
         if (data && data.sdp) {
-          callbacks.onOffer(remoteUid, {
+          callbacksRef.current.onOffer(remoteUid, {
             type: 'offer',
             sdp: data.sdp,
           })
@@ -111,15 +128,16 @@ export function useSignaling(
       },
       { onlyOnce: true }
     )
+    unsubscribes.push(unsubOffer)
 
     // Also listen for answer from remote
     const answerRefPath = answerRef(roomId, remoteUid, localUid)
-    onValue(
+    const unsubAnswer = onValue(
       answerRefPath,
       (snapshot) => {
         const data = snapshot.val()
         if (data && data.sdp) {
-          callbacks.onAnswer(remoteUid, {
+          callbacksRef.current.onAnswer(remoteUid, {
             type: 'answer',
             sdp: data.sdp,
           })
@@ -127,6 +145,7 @@ export function useSignaling(
       },
       { onlyOnce: true }
     )
+    unsubscribes.push(unsubAnswer)
 
     // Listen for answer ICE candidates
     const answerCandidatesRefPath = answerCandidatesRef(
@@ -134,13 +153,13 @@ export function useSignaling(
       remoteUid,
       localUid
     )
-    onValue(
+    const unsubCandidates = onValue(
       answerCandidatesRefPath,
       (snapshot) => {
         const candidates = snapshot.val() || {}
         Object.values(candidates).forEach((candidate: any) => {
           if (candidate && candidate.candidate) {
-            callbacks.onIceCandidate(remoteUid, {
+            callbacksRef.current.onIceCandidate(remoteUid, {
               candidate: candidate.candidate,
               sdpMid: candidate.sdpMid,
               sdpMLineIndex: candidate.sdpMLineIndex,
@@ -149,21 +168,25 @@ export function useSignaling(
         })
       }
     )
+    unsubscribes.push(unsubCandidates)
+
+    return unsubscribes
   }
 
   function setupAnswerListener(
     roomId: string,
     localUid: string,
     remoteUid: string
-  ): void {
-    const offerRefPath = offerRef(roomId, remoteUid, localUid)
+  ): Array<() => void> {
+    const unsubscribes: Array<() => void> = []
 
-    onValue(
+    const offerRefPath = offerRef(roomId, remoteUid, localUid)
+    const unsubOffer = onValue(
       offerRefPath,
       (snapshot) => {
         const data = snapshot.val()
         if (data && data.sdp) {
-          callbacks.onOffer(remoteUid, {
+          callbacksRef.current.onOffer(remoteUid, {
             type: 'offer',
             sdp: data.sdp,
           })
@@ -171,6 +194,7 @@ export function useSignaling(
       },
       { onlyOnce: true }
     )
+    unsubscribes.push(unsubOffer)
 
     // Listen for offer ICE candidates
     const offerCandidatesRefPath = offerCandidatesRef(
@@ -178,13 +202,13 @@ export function useSignaling(
       remoteUid,
       localUid
     )
-    onValue(
+    const unsubCandidates = onValue(
       offerCandidatesRefPath,
       (snapshot) => {
         const candidates = snapshot.val() || {}
         Object.values(candidates).forEach((candidate: any) => {
           if (candidate && candidate.candidate) {
-            callbacks.onIceCandidate(remoteUid, {
+            callbacksRef.current.onIceCandidate(remoteUid, {
               candidate: candidate.candidate,
               sdpMid: candidate.sdpMid,
               sdpMLineIndex: candidate.sdpMLineIndex,
@@ -193,6 +217,9 @@ export function useSignaling(
         })
       }
     )
+    unsubscribes.push(unsubCandidates)
+
+    return unsubscribes
   }
 
   return {

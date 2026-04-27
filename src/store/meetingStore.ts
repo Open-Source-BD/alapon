@@ -118,14 +118,16 @@ export const useMeetingStore = create<MeetingState>()(
 
     addPeer: (uid: string, name: string) =>
       set((state) => {
-        state.peers[uid] = {
-          uid,
-          name,
-          stream: null,
-          isAudioMuted: false,
-          isVideoOff: false,
-          isHandRaised: false,
-          connectionState: null,
+        if (!state.peers[uid]) {
+          state.peers[uid] = {
+            uid,
+            name,
+            stream: null,
+            isAudioMuted: false,
+            isVideoOff: false,
+            isHandRaised: false,
+            connectionState: null,
+          }
         }
       }),
 

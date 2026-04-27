@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useWebRTC } from '@/hooks/useWebRTC'
 import { useActiveSpeaker } from '@/hooks/useActiveSpeaker'
+import { useMediaStream } from '@/hooks/useMediaStream'
 import { VideoGrid } from './VideoGrid'
 import { ControlBar } from './ControlBar'
 import { ChatPanel } from './SidePanel/ChatPanel'
@@ -18,6 +19,7 @@ export function MeetingRoom() {
 
   useWebRTC(roomId)
   useActiveSpeaker()
+  const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export function MeetingRoom() {
   const handleLeave = async () => {
     try {
       setPhase('left')
+      mediaStream.stopMedia()
       reset()
 
       leaveTimeoutRef.current = setTimeout(() => {

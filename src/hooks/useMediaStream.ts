@@ -5,6 +5,7 @@ export function useMediaStream() {
   const streamRef = useRef<MediaStream | null>(null)
   const screenStreamRef = useRef<MediaStream | null>(null)
   const originalVideoTrackRef = useRef<MediaStreamTrack | null>(null)
+  const startedRef = useRef(false)
 
   const setLocalStream = useMeetingStore((s) => s.setLocalStream)
   const setAudioMuted = useMeetingStore((s) => s.setAudioMuted)
@@ -12,6 +13,7 @@ export function useMediaStream() {
   const setScreenSharing = useMeetingStore((s) => s.setScreenSharing)
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
+  const localStream = useMeetingStore((s) => s.localStream)
 
   async function startMedia(): Promise<void> {
     try {
@@ -29,6 +31,7 @@ export function useMediaStream() {
       })
 
       streamRef.current = stream
+      startedRef.current = true
       setLocalStream(stream)
 
       // Apply initial mute/off states
@@ -147,11 +150,20 @@ export function useMediaStream() {
     }
   }
 
-  // Cleanup on unmount
+  // Re-attach to existing stream if already started by another instance
+  useEffect(() => {
+    if (!streamRef.current && localStream && !startedRef.current) {
+      streamRef.current = localStream
+    }
+  }, [localStream])
+
+  // Cleanup on unmount (only stop if THIS instance started the media)
   useEffect(() => {
     return () => {
-      stopMedia()
-      stopScreenShare()
+      if (startedRef.current) {
+        stopMedia()
+        stopScreenShare()
+      }
     }
   }, [])
 

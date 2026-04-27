@@ -31,6 +31,7 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
   const setIsEncrypted = useMeetingStore((s) => s.setIsEncrypted)
   const cameraMuted = useMeetingStore((s) => s.isVideoOff)
   const micMuted = useMeetingStore((s) => s.isAudioMuted)
+  const localStream = useMeetingStore((s) => s.localStream)
 
   useEffect(() => {
     const initMedia = async () => {
@@ -43,18 +44,13 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
     }
 
     initMedia()
-
-    return () => {
-      mediaStream.stopMedia()
-    }
   }, [mediaStream])
 
   useEffect(() => {
-    const localStream = useMeetingStore.getState().localStream
     if (videoRef.current && localStream) {
       videoRef.current.srcObject = localStream
     }
-  }, [])
+  }, [localStream])
 
   const handleJoin = async (isCreating: boolean) => {
     if (!name.trim()) {
