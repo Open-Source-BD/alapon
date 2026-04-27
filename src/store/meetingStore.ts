@@ -31,8 +31,10 @@ export interface MeetingState {
   // Room
   roomId: string | null
   phase: Phase
+  joinedAt: number | null
   setRoomId: (roomId: string | null) => void
   setPhase: (phase: Phase) => void
+  setJoinedAt: (timestamp: number | null) => void
 
   // Media
   localStream: MediaStream | null
@@ -84,6 +86,7 @@ const initialState = {
   localName: '',
   roomId: null,
   phase: 'idle' as const,
+  joinedAt: null,
   localStream: null,
   isAudioMuted: false,
   isVideoOff: false,
@@ -106,6 +109,7 @@ export const useMeetingStore = create<MeetingState>()(
     setLocalName: (name: string) => set({ localName: name }),
     setRoomId: (roomId: string | null) => set({ roomId }),
     setPhase: (phase: Phase) => set({ phase }),
+    setJoinedAt: (timestamp: number | null) => set({ joinedAt: timestamp }),
 
     setLocalStream: (stream: MediaStream | null) => set({ localStream: stream }),
     setAudioMuted: (muted: boolean) => set({ isAudioMuted: muted }),
