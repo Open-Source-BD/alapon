@@ -34,7 +34,7 @@ export function useWebRTC(roomId: string | null) {
     (remoteUid: string): RTCPeerConnection => {
       const pc = new RTCPeerConnection({
         iceServers: getIceServers(),
-        encodedInsertableStreams: true,
+        encodedInsertableStreams: !!encryptionKey && supportsInsertableStreams,
       } as any)
 
       // Add local tracks
@@ -43,7 +43,7 @@ export function useWebRTC(roomId: string | null) {
           const sender = pc.addTrack(track, localStream)
 
           // Apply encoder transform if encryption is enabled
-          if (encryptionKey) {
+          if (encryptionKey && supportsInsertableStreams) {
             applyEncoderTransform(sender, encryptionKey)
           }
         })
@@ -51,14 +51,22 @@ export function useWebRTC(roomId: string | null) {
 
       // Handle incoming tracks
       pc.ontrack = (event) => {
-        const [stream] = event.streams
+        let [stream] = event.streams
+        if (!stream) {
+          stream = new MediaStream([event.track])
+        }
 
         // Apply decoder transform if encryption is enabled
-        if (encryptionKey) {
+        if (encryptionKey && supportsInsertableStreams) {
           applyDecoderTransform(event.receiver, encryptionKey)
         }
 
         setPeerStream(remoteUid, stream)
+        
+        // Ensure connection state is updated
+        updatePeer(remoteUid, {
+          connectionState: pc.connectionState,
+        })
       }
 
       // ICE candidates

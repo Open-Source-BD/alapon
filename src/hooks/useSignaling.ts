@@ -35,6 +35,9 @@ export function useSignaling(
 
   const localUid = useMeetingStore((s) => s.localUid)
   const localName = useMeetingStore((s) => s.localName)
+  const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
+  const isVideoOff = useMeetingStore((s) => s.isVideoOff)
+  const updatePeer = useMeetingStore((s) => s.updatePeer)
 
   useEffect(() => {
     if (!roomId || !localUid) return
@@ -56,6 +59,8 @@ export function useSignaling(
           uid: localUid,
           name: localName,
           joinedAt: serverTimestamp(),
+          isAudioMuted,
+          isVideoOff,
         })
 
         // Listen for other participants
@@ -66,9 +71,11 @@ export function useSignaling(
             const participants = snapshot.val() || {}
             const currentUids = Object.keys(participants)
 
-            // Detect new participants
+            // Detect new participants and updates
             Object.entries(participants).forEach(([uid, data]: [string, any]) => {
-              if (uid !== localUid && !processedPeers.has(uid)) {
+              if (uid === localUid) return
+
+              if (!processedPeers.has(uid)) {
                 processedPeers.add(uid)
                 callbacksRef.current.onPeerJoined(uid, data.name)
 
@@ -82,6 +89,12 @@ export function useSignaling(
                   unsubscribes.push(...unsubs)
                 }
               }
+
+              // Sync mute/video state
+              updatePeer(uid, {
+                isAudioMuted: data.isAudioMuted ?? false,
+                isVideoOff: data.isVideoOff ?? false,
+              })
             })
 
             // Detect departures
@@ -106,6 +119,15 @@ export function useSignaling(
       remove(presenceRef)
     }
   }, [roomId, localUid])
+
+  // Sync local state changes to Firebase
+  useEffect(() => {
+    if (!roomId || !localUid) return
+    
+    const presenceRef = participantRef(roomId, localUid)
+    set(child(presenceRef, 'isAudioMuted'), isAudioMuted)
+    set(child(presenceRef, 'isVideoOff'), isVideoOff)
+  }, [roomId, localUid, isAudioMuted, isVideoOff])
 
   function setupOfferListener(
     roomId: string,
