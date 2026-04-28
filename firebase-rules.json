@@ -2,9 +2,9 @@
   "rules": {
     "rooms": {
       "$roomId": {
+        ".read": true,
         "participants": {
           "$uid": {
-            ".read": true,
             ".write": "!data.exists() || data.child('uid').val() === $uid",
             ".validate": "newData.hasChildren(['name','uid','joinedAt']) && newData.child('uid').val() === $uid && newData.child('name').val().length > 0 && newData.child('name').val().length <= 64"
           }
@@ -12,19 +12,15 @@
         "signaling": {
           "$slot": {
             "offer": {
-              ".read": true,
               ".write": "!data.exists()"
             },
             "answer": {
-              ".read": true,
               ".write": "!data.exists()"
             },
             "offerCandidates": {
-              ".read": true,
               ".write": true
             },
             "answerCandidates": {
-              ".read": true,
               ".write": true
             }
           }

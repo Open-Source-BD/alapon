@@ -27,7 +27,7 @@ function App() {
   }
 
   // Parse URL to get room ID
-  const pathMatch = window.location.pathname.match(/\/([a-z]+-[a-z]+-[a-z]+)$/i)
+  const pathMatch = window.location.pathname.match(/\/([a-z0-9]+-[a-z0-9]+-[a-z0-9]+)\/?$/i)
   const roomIdFromUrl = pathMatch?.[1]
 
   // Determine which screen to show
