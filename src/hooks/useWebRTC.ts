@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { nanoid } from 'nanoid'
 import { getIceServers } from '@/lib/iceServers'
-import { applyEncoderTransform, applyDecoderTransform } from '@/lib/crypto'
+import { applyEncoderTransform, applyDecoderTransform, supportsInsertableStreams } from '@/lib/crypto'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useSignaling } from './useSignaling'
 import type { SignalingCallbacks } from './useSignaling'
