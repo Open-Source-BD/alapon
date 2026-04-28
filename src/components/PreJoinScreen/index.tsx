@@ -24,6 +24,7 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaStream = useMediaStream()
 
+  const setLocalUid = useMeetingStore((s) => s.setLocalUid)
   const setLocalName = useMeetingStore((s) => s.setLocalName)
   const setRoomId = useMeetingStore((s) => s.setRoomId)
   const setPhase = useMeetingStore((s) => s.setPhase)
@@ -83,6 +84,7 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
         }
       }
 
+      setLocalUid(nanoid())
       setLocalName(name)
       setRoomId(roomIdToUse)
       setPhase('joining')
