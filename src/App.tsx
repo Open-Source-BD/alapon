@@ -10,16 +10,8 @@ function App() {
   const phase = useMeetingStore((s) => s.phase)
   const setLocalUid = useMeetingStore((s) => s.setLocalUid)
 
-  // Initialize on mount
   useEffect(() => {
-    // Generate and persist UID for this session
-    let uid = sessionStorage.getItem('uid')
-    if (!uid) {
-      uid = nanoid(10)
-      sessionStorage.setItem('uid', uid)
-    }
-
-    setLocalUid(uid)
+    setLocalUid(nanoid(10))
     setMounted(true)
   }, [setLocalUid])
 

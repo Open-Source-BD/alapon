@@ -17,6 +17,7 @@ export function useWebRTC(roomId: string | null) {
     new Map()
   )
   const remoteOfferStateRef = useRef<Map<string, boolean>>(new Map())
+  const signalingMethodsRef = useRef<ReturnType<typeof useSignaling> | null>(null)
 
   const localUid = useMeetingStore((s) => s.localUid)
   const localName = useMeetingStore((s) => s.localName)
@@ -64,7 +65,7 @@ export function useWebRTC(roomId: string | null) {
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           const isAnswer = remoteOfferStateRef.current.get(remoteUid)
-          signalingMethods?.sendCandidate(
+          signalingMethodsRef.current?.sendCandidate(
             remoteUid,
             event.candidate,
             isAnswer ?? false
@@ -147,8 +148,8 @@ export function useWebRTC(roomId: string | null) {
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
 
-        if (signalingMethods && offer.sdp) {
-          await signalingMethods.sendOffer(remoteUid, offer.sdp)
+        if (signalingMethodsRef.current && offer.sdp) {
+          await signalingMethodsRef.current.sendOffer(remoteUid, offer.sdp)
         }
       } catch (error) {
         console.error('Failed to initiate call:', error)
@@ -189,8 +190,8 @@ export function useWebRTC(roomId: string | null) {
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
 
-        if (signalingMethods && answer.sdp) {
-          await signalingMethods.sendAnswer(fromUid, answer.sdp)
+        if (signalingMethodsRef.current && answer.sdp) {
+          await signalingMethodsRef.current.sendAnswer(fromUid, answer.sdp)
         }
       } catch (error) {
         console.error('Failed to handle offer:', error)
@@ -266,8 +267,8 @@ export function useWebRTC(roomId: string | null) {
         const offer = await pc.createOffer({ iceRestart: true })
         await pc.setLocalDescription(offer)
 
-        if (signalingMethods && offer.sdp) {
-          await signalingMethods.sendOffer(remoteUid, offer.sdp)
+        if (signalingMethodsRef.current && offer.sdp) {
+          await signalingMethodsRef.current.sendOffer(remoteUid, offer.sdp)
         }
       } catch (error) {
         console.error('Failed ICE restart:', error)
@@ -321,8 +322,7 @@ export function useWebRTC(roomId: string | null) {
     [localName, localUid, addChatMessage]
   )
 
-  // Setup signaling callbacks
-  const signalingMethods = useSignaling(
+  signalingMethodsRef.current = useSignaling(
     roomId,
     {
       onPeerJoined: (uid: string, name: string) => {

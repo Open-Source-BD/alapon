@@ -105,7 +105,7 @@ export function useSignaling(
       unsubscribes.forEach((unsub) => unsub())
       remove(presenceRef)
     }
-  }, [roomId, localUid, localName])
+  }, [roomId, localUid])
 
   function setupOfferListener(
     roomId: string,
@@ -114,23 +114,7 @@ export function useSignaling(
   ): Array<() => void> {
     const unsubscribes: Array<() => void> = []
 
-    const offerRefPath = offerRef(roomId, localUid, remoteUid)
-    const unsubOffer = onValue(
-      offerRefPath,
-      (snapshot) => {
-        const data = snapshot.val()
-        if (data && data.sdp) {
-          callbacksRef.current.onOffer(remoteUid, {
-            type: 'offer',
-            sdp: data.sdp,
-          })
-        }
-      },
-      { onlyOnce: true }
-    )
-    unsubscribes.push(unsubOffer)
-
-    // Also listen for answer from remote
+    // Listen for answer from remote
     const answerRefPath = answerRef(roomId, remoteUid, localUid)
     const unsubAnswer = onValue(
       answerRefPath,

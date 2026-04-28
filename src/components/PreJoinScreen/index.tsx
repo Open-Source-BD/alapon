@@ -24,7 +24,6 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaStream = useMediaStream()
 
-  const setLocalUid = useMeetingStore((s) => s.setLocalUid)
   const setLocalName = useMeetingStore((s) => s.setLocalName)
   const setRoomId = useMeetingStore((s) => s.setRoomId)
   const setPhase = useMeetingStore((s) => s.setPhase)
@@ -69,22 +68,18 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
         return
       }
 
-      const passphrase = isCreating ? nanoid(20) : ''
-      if (passphrase || !isCreating) {
-        const key = await deriveRoomKey(
-          passphrase || nanoid(20),
-          roomIdToUse
-        )
+      const hashKey = new URLSearchParams(window.location.hash.slice(1)).get('key') ?? ''
+      const passphrase = isCreating ? nanoid(20) : hashKey
+      if (passphrase) {
+        const key = await deriveRoomKey(passphrase, roomIdToUse)
         setEncryptionKey(key)
         setIsEncrypted(true)
 
-        if (isCreating && passphrase) {
-          const newUrl = `/${roomIdToUse}#key=${passphrase}`
-          window.history.replaceState({}, '', newUrl)
+        if (isCreating) {
+          window.history.replaceState({}, '', `/${roomIdToUse}#key=${passphrase}`)
         }
       }
 
-      setLocalUid(nanoid())
       setLocalName(name)
       setRoomId(roomIdToUse)
       setPhase('joining')
