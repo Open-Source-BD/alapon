@@ -20,6 +20,17 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError('Could not copy link. Copy it from the address bar.')
+    }
+  }
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaStream = useMediaStream()
@@ -103,7 +114,7 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
 
   return (
     <div className="w-full h-screen bg-gray-950 text-white flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl grid grid-cols-2 gap-8">
+      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="flex flex-col gap-4">
           <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-700">
             {error ? (
@@ -184,10 +195,12 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
                 {window.location.href}
               </div>
               <button
-                onClick={() => navigator.clipboard.writeText(window.location.href)}
-                className="mt-2 w-full text-xs py-1 bg-gray-700 hover:bg-gray-600 rounded"
+                onClick={handleCopyLink}
+                className={`mt-2 w-full text-xs py-1 rounded transition-colors ${
+                  copied ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'
+                }`}
               >
-                Copy Link
+                {copied ? 'Copied!' : 'Copy Link'}
               </button>
             </div>
           )}
