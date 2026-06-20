@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Send, X, Smile } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
-import { REACTION_EMOJIS } from '@/lib/emoji'
+import { EmojiPicker } from '../EmojiPicker'
 
 interface ChatPanelProps {
   // Provided by MeetingRoom's single useWebRTC instance so chat uses the same
@@ -167,17 +167,8 @@ export function ChatPanel({ sendChatMessage, sendTyping }: ChatPanelProps) {
             {emojiOpen && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setEmojiOpen(false)} aria-hidden />
-                <div className="absolute bottom-full left-0 z-30 mb-2 grid grid-cols-4 gap-1 rounded-lg border border-border bg-elevated p-2 shadow-xl">
-                  {REACTION_EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => insertEmoji(emoji)}
-                      aria-label={`Insert ${emoji}`}
-                      className="rounded px-1 text-xl hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+                <div className="absolute bottom-full left-0 z-30 mb-2">
+                  <EmojiPicker onSelect={insertEmoji} />
                 </div>
               </>
             )}
