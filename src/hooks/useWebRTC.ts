@@ -7,6 +7,7 @@ import { getIceServers } from '@/lib/iceServers'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useSignaling } from './useSignaling'
 import type { SignalingCallbacks } from './useSignaling'
+import { useActiveSpeaker } from './useActiveSpeaker'
 
 interface PeerConnection {
   pc: RTCPeerConnection
@@ -31,6 +32,11 @@ export function useWebRTC(roomId: string | null) {
   const updatePeer = useMeetingStore((s) => s.updatePeer)
   const setPeerStream = useMeetingStore((s) => s.setPeerStream)
   const addChatMessage = useMeetingStore((s) => s.addChatMessage)
+
+  // Active-speaker detection polls getStats() on the peer connections it knows
+  // about. useWebRTC is the only place PCs are created, so it must register them
+  // here; otherwise the detector's map stays empty and the feature is dead.
+  const { registerPeerConnection, unregisterPeerConnection } = useActiveSpeaker()
 
   const createPeerConnection = useCallback(
     (remoteUid: string): RTCPeerConnection => {
@@ -184,6 +190,7 @@ export function useWebRTC(roomId: string | null) {
           pc,
           dataChannel: null,
         })
+        registerPeerConnection(remoteUid, pc)
 
         remoteOfferStateRef.current.set(remoteUid, false)
 
@@ -202,7 +209,7 @@ export function useWebRTC(roomId: string | null) {
         console.error('Failed to initiate call:', error)
       }
     },
-    [createPeerConnection, setupDataChannel]
+    [createPeerConnection, setupDataChannel, registerPeerConnection]
   )
 
   const handleOffer = useCallback(
@@ -216,6 +223,7 @@ export function useWebRTC(roomId: string | null) {
             pc,
             dataChannel: null,
           })
+          registerPeerConnection(fromUid, pc)
         }
 
         remoteOfferStateRef.current.set(fromUid, true)
@@ -244,7 +252,7 @@ export function useWebRTC(roomId: string | null) {
         console.error('Failed to handle offer:', error)
       }
     },
-    [createPeerConnection]
+    [createPeerConnection, registerPeerConnection]
   )
 
   const handleAnswer = useCallback(
@@ -339,9 +347,10 @@ export function useWebRTC(roomId: string | null) {
       peerConnectionsRef.current.delete(remoteUid)
       candidateQueuesRef.current.delete(remoteUid)
       remoteOfferStateRef.current.delete(remoteUid)
+      unregisterPeerConnection(remoteUid)
       removePeer(remoteUid)
     },
-    [removePeer]
+    [removePeer, unregisterPeerConnection]
   )
 
   const sendChatMessage = useCallback(

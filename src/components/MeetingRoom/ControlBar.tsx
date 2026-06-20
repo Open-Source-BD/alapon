@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Mic, MicOff, Video, VideoOff, Share2, Phone, MessageSquare, Users, MoreVertical } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Share2, Phone, MessageSquare, Users } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
 
@@ -120,13 +120,6 @@ export function ControlBar({ onLeave }: ControlBarProps) {
             title="Share screen"
           >
             <Share2 className="w-5 h-5 text-white" />
-          </button>
-
-          <button
-            className="p-3 rounded-full bg-gray-700 hover:bg-gray-600"
-            title="More options"
-          >
-            <MoreVertical className="w-5 h-5 text-white" />
           </button>
 
           <button

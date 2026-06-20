@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useWebRTC } from '@/hooks/useWebRTC'
-import { useActiveSpeaker } from '@/hooks/useActiveSpeaker'
 import { useMediaStream } from '@/hooks/useMediaStream'
 import { VideoGrid } from './VideoGrid'
 import { ControlBar } from './ControlBar'
@@ -17,10 +16,14 @@ export function MeetingRoom() {
   const setSignalingError = useMeetingStore((s) => s.setSignalingError)
 
   const setPhase = useMeetingStore((s) => s.setPhase)
+  const setJoinedAt = useMeetingStore((s) => s.setJoinedAt)
   const reset = useMeetingStore((s) => s.reset)
 
-  useWebRTC(roomId)
-  useActiveSpeaker()
+  // useWebRTC is the single owner of peer connections, signaling, and the chat
+  // data channel. It also drives active-speaker detection internally. Anything
+  // that needs to send chat (ChatPanel) gets it from here via props — calling
+  // useWebRTC again would spin up a second, competing WebRTC stack.
+  const { sendChatMessage } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -34,9 +37,14 @@ export function MeetingRoom() {
 
   const handleLeave = async () => {
     try {
-      setPhase('left')
+      // Preserve joinedAt so PostCallScreen can show the real call duration:
+      // reset() wipes it (and would reset phase to 'idle', hiding PostCallScreen
+      // entirely), so capture it first and restore phase/joinedAt afterward.
+      const joinedAt = useMeetingStore.getState().joinedAt
       mediaStream.stopMedia()
       reset()
+      setJoinedAt(joinedAt)
+      setPhase('left')
 
       leaveTimeoutRef.current = setTimeout(() => {
         window.location.href = '/'
@@ -74,7 +82,7 @@ export function MeetingRoom() {
 
       <div className="w-80 border-l border-gray-700 flex">
         {isChatOpen ? (
-          <ChatPanel roomId={roomId} />
+          <ChatPanel sendChatMessage={sendChatMessage} />
         ) : isParticipantsOpen ? (
           <ParticipantsPanel />
         ) : (
