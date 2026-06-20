@@ -15,6 +15,7 @@ import {
   Circle,
   Sparkles,
 } from 'lucide-react'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
 import { useRecording } from '@/hooks/useRecording'
@@ -65,25 +66,38 @@ function ControlButton({
       : 'text-accent-ink'
 
   return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={active}
-      title={label}
-      className={cn(
-        'relative rounded-full p-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
-        iconColor,
-        active ? activeBg : 'bg-elevated hover:bg-border',
-        className
-      )}
-    >
-      {children}
-      {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white">
-          {badge > 9 ? '9+' : badge}
-        </span>
-      )}
-    </button>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <button
+          onClick={onClick}
+          aria-label={label}
+          aria-pressed={active}
+          className={cn(
+            'relative rounded-full p-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+            iconColor,
+            active ? activeBg : 'bg-elevated hover:bg-border',
+            className
+          )}
+        >
+          {children}
+          {badge !== undefined && badge > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white">
+              {badge > 9 ? '9+' : badge}
+            </span>
+          )}
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="top"
+          sideOffset={8}
+          className="z-50 rounded-md border border-border bg-elevated px-2 py-1 text-xs font-medium text-text shadow-xl select-none"
+        >
+          {label}
+          <Tooltip.Arrow className="fill-elevated" />
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   )
 }
 
@@ -211,6 +225,7 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
   }
 
   return (
+    <Tooltip.Provider delayDuration={250} skipDelayDuration={400}>
     <div className="shrink-0 bg-surface border-t border-border px-2 py-3 sm:px-6">
       <div className="flex items-center justify-center gap-2 sm:gap-3">
         <ControlButton
@@ -345,5 +360,6 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
         </ControlButton>
       </div>
     </div>
+    </Tooltip.Provider>
   )
 }
