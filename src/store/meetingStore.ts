@@ -16,12 +16,21 @@ export interface PeerState {
   quality: ConnectionQuality
 }
 
+export interface ReplyRef {
+  id: string
+  fromName: string
+  text: string
+}
+
 export interface ChatMessage {
   id: string
   fromUid: string
   fromName: string
   text: string
   timestamp: number
+  reactions?: Record<string, string[]> // emoji -> uids who reacted
+  replyTo?: ReplyRef
+  deleted?: boolean
 }
 
 export interface Reaction {
@@ -101,6 +110,8 @@ export interface MeetingState {
   addChatMessage: (message: ChatMessage) => void
   clearChatMessages: () => void
   setPeerTyping: (uid: string, typing: boolean) => void
+  toggleMessageReaction: (msgId: string, emoji: string, uid: string) => void
+  setMessageDeleted: (msgId: string) => void
 
   // Toasts (transient user feedback)
   toasts: Toast[]
@@ -260,6 +271,31 @@ export const useMeetingStore = create<MeetingState>()(
       }),
 
     clearChatMessages: () => set({ chatMessages: [], unreadChatCount: 0 }),
+
+    toggleMessageReaction: (msgId: string, emoji: string, uid: string) =>
+      set((state) => {
+        const msg = state.chatMessages.find((m) => m.id === msgId)
+        if (!msg) return
+        if (!msg.reactions) msg.reactions = {}
+        const list = msg.reactions[emoji] ?? []
+        if (list.includes(uid)) {
+          const next = list.filter((u) => u !== uid)
+          if (next.length) msg.reactions[emoji] = next
+          else delete msg.reactions[emoji]
+        } else {
+          msg.reactions[emoji] = [...list, uid]
+        }
+      }),
+
+    setMessageDeleted: (msgId: string) =>
+      set((state) => {
+        const msg = state.chatMessages.find((m) => m.id === msgId)
+        if (msg) {
+          msg.deleted = true
+          msg.text = ''
+          msg.reactions = {}
+        }
+      }),
 
     addToast: (message: string, type: ToastType = 'info') =>
       set((state) => {

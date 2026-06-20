@@ -30,7 +30,13 @@ export function MeetingRoom() {
   // data channel. It also drives active-speaker detection internally. Anything
   // that needs to send chat (ChatPanel) gets it from here via props — calling
   // useWebRTC again would spin up a second, competing WebRTC stack.
-  const { sendChatMessage, sendReaction, sendTyping } = useWebRTC(roomId)
+  const {
+    sendChatMessage,
+    sendReaction,
+    sendTyping,
+    sendMessageReaction,
+    sendMessageDelete,
+  } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [linkCopied, setLinkCopied] = useState(false)
@@ -154,7 +160,12 @@ export function MeetingRoom() {
                        sm:static sm:h-auto sm:w-80 sm:rounded-none sm:border-t-0 sm:border-l sm:shadow-none"
           >
             {isChatOpen ? (
-              <ChatPanel sendChatMessage={sendChatMessage} sendTyping={sendTyping} />
+              <ChatPanel
+              sendChatMessage={sendChatMessage}
+              sendTyping={sendTyping}
+              sendMessageReaction={sendMessageReaction}
+              sendMessageDelete={sendMessageDelete}
+            />
             ) : (
               <ParticipantsPanel />
             )}

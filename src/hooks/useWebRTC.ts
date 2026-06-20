@@ -170,6 +170,7 @@ export function useWebRTC(roomId: string | null) {
                 fromName: message.fromName,
                 text: message.text,
                 timestamp: message.timestamp,
+                replyTo: message.replyTo,
               })
               store.setPeerTyping(remoteUid, false)
               break
@@ -181,6 +182,19 @@ export function useWebRTC(roomId: string | null) {
             case 'typing':
               store.setPeerTyping(remoteUid, !!message.typing)
               break
+            case 'msg-reaction':
+              if (typeof message.emoji === 'string' && message.msgId) {
+                store.toggleMessageReaction(message.msgId, message.emoji, remoteUid)
+              }
+              break
+            case 'msg-delete': {
+              // Delete-for-everyone: only honor it for the sender's own message.
+              const target = store.chatMessages.find((m) => m.id === message.msgId)
+              if (target && target.fromUid === remoteUid) {
+                store.setMessageDeleted(message.msgId)
+              }
+              break
+            }
             default:
               // Unknown message type from a newer/older peer — ignore.
               break
@@ -377,13 +391,14 @@ export function useWebRTC(roomId: string | null) {
   )
 
   const sendChatMessage = useCallback(
-    (text: string) => {
+    (text: string, replyTo?: { id: string; fromName: string; text: string }) => {
       const message = {
         type: 'chat',
         id: nanoid(),
         fromName: localName,
         text,
         timestamp: Date.now(),
+        replyTo,
       }
 
       peerConnectionsRef.current.forEach((connection) => {
@@ -436,6 +451,22 @@ export function useWebRTC(roomId: string | null) {
     [broadcast]
   )
 
+  const sendMessageReaction = useCallback(
+    (msgId: string, emoji: string) => {
+      broadcast({ type: 'msg-reaction', msgId, emoji })
+      useMeetingStore.getState().toggleMessageReaction(msgId, emoji, localUid)
+    },
+    [broadcast, localUid]
+  )
+
+  const sendMessageDelete = useCallback(
+    (msgId: string) => {
+      broadcast({ type: 'msg-delete', msgId })
+      useMeetingStore.getState().setMessageDeleted(msgId)
+    },
+    [broadcast]
+  )
+
   signalingMethodsRef.current = useSignaling(
     roomId,
     {
@@ -480,5 +511,7 @@ export function useWebRTC(roomId: string | null) {
     sendChatMessage,
     sendReaction,
     sendTyping,
+    sendMessageReaction,
+    sendMessageDelete,
   }
 }
