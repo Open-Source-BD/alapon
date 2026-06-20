@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Lock, Link2, Check, Users } from 'lucide-react'
+import { Lock, Link2, Check, Users, MonitorUp } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useWebRTC } from '@/hooks/useWebRTC'
 import { useMediaStream } from '@/hooks/useMediaStream'
@@ -18,6 +18,8 @@ export function MeetingRoom() {
   const phase = useMeetingStore((s) => s.phase)
   const isEncrypted = useMeetingStore((s) => s.isEncrypted)
   const peers = useMeetingStore((s) => s.peers)
+  const localUid = useMeetingStore((s) => s.localUid)
+  const presentingUid = useMeetingStore((s) => s.presentingUid)
   const signalingError = useMeetingStore((s) => s.signalingError)
   const setSignalingError = useMeetingStore((s) => s.setSignalingError)
   const addToast = useMeetingStore((s) => s.addToast)
@@ -38,6 +40,8 @@ export function MeetingRoom() {
     sendMessageDelete,
     sendReceipt,
     sendFile,
+    startScreenShare,
+    stopScreenShare,
   } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -121,6 +125,14 @@ export function MeetingRoom() {
             <Users className="w-3.5 h-3.5" />
             {participantCount} / {MAX_PARTICIPANTS}
           </span>
+          {presentingUid && (
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent whitespace-nowrap">
+              <MonitorUp className="w-3.5 h-3.5" />
+              {presentingUid === localUid
+                ? 'You are presenting'
+                : `${peers[presentingUid]?.name || 'Someone'} is presenting`}
+            </span>
+          )}
         </div>
         <button
           onClick={handleCopyInvite}
@@ -153,7 +165,12 @@ export function MeetingRoom() {
             <VideoGrid />
             <ReactionsOverlay />
           </div>
-          <ControlBar onLeave={handleLeave} onReaction={sendReaction} />
+          <ControlBar
+            onLeave={handleLeave}
+            onReaction={sendReaction}
+            startScreenShare={startScreenShare}
+            stopScreenShare={stopScreenShare}
+          />
         </div>
 
         {isPanelOpen && (

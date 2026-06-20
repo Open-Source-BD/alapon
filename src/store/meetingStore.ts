@@ -101,6 +101,10 @@ export interface MeetingState {
   layout: Layout
   setLayout: (layout: Layout) => void
 
+  // Screen sharing: who is currently presenting (local uid or a peer's).
+  presentingUid: string | null
+  setPresenting: (uid: string | null) => void
+
   // Reactions (ephemeral floating emoji)
   reactions: Reaction[]
   addReaction: (uid: string, emoji: string, id?: string) => void
@@ -152,6 +156,7 @@ const initialState = {
   isChatOpen: false,
   isParticipantsOpen: false,
   pinnedUid: null,
+  presentingUid: null,
   layout: 'auto' as Layout,
   reactions: [] as Reaction[],
   chatMessages: [],
@@ -208,6 +213,7 @@ export const useMeetingStore = create<MeetingState>()(
         delete state.peers[uid]
         delete state.peersTyping[uid]
         if (state.pinnedUid === uid) state.pinnedUid = null
+        if (state.presentingUid === uid) state.presentingUid = null
       }),
 
     updatePeer: (uid: string, patch: Partial<PeerState>) =>
@@ -242,6 +248,8 @@ export const useMeetingStore = create<MeetingState>()(
       }),
 
     setPinned: (uid: string | null) => set({ pinnedUid: uid }),
+
+    setPresenting: (uid: string | null) => set({ presentingUid: uid }),
     setLayout: (layout: Layout) => set({ layout }),
 
     addReaction: (uid: string, emoji: string, id?: string) =>

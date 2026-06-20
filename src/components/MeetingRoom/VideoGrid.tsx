@@ -29,6 +29,7 @@ export function VideoGrid() {
   const peers = useMeetingStore((s) => s.peers)
   const activeSpeakerUid = useMeetingStore((s) => s.activeSpeakerUid)
   const pinnedUid = useMeetingStore((s) => s.pinnedUid)
+  const presentingUid = useMeetingStore((s) => s.presentingUid)
   const layout = useMeetingStore((s) => s.layout)
 
   const localData: TileData = {
@@ -67,6 +68,7 @@ export function VideoGrid() {
       isActiveSpeaker={activeSpeakerUid === t.uid}
       connectionState={t.connectionState}
       quality={t.quality}
+      isScreen={presentingUid === t.uid}
       compact={opts.compact}
       pinnable={opts.pinnable}
     />
@@ -78,8 +80,10 @@ export function VideoGrid() {
     </div>
   )
 
-  // Pinned spotlight: pinned tile fills the stage, the rest sit in a filmstrip.
-  const pinned = pinnedUid ? allTiles.find((t) => t.uid === pinnedUid) : undefined
+  // Spotlight: an explicit pin wins; otherwise the active presenter (screen share)
+  // fills the stage and everyone else sits in a filmstrip.
+  const spotlightUid = pinnedUid ?? presentingUid
+  const pinned = spotlightUid ? allTiles.find((t) => t.uid === spotlightUid) : undefined
   if (pinned && layout !== 'grid') {
     const others = allTiles.filter((t) => t.uid !== pinned.uid)
     return wrap(

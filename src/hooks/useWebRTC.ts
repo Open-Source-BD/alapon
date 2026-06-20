@@ -52,6 +52,8 @@ export function useWebRTC(roomId: string | null) {
     new Map()
   )
   const incomingFilesRef = useRef<Map<string, IncomingFile>>(new Map())
+  const screenStreamRef = useRef<MediaStream | null>(null)
+  const cameraVideoTrackRef = useRef<MediaStreamTrack | null>(null)
   const remoteOfferStateRef = useRef<Map<string, boolean>>(new Map())
   const signalingMethodsRef = useRef<ReturnType<typeof useSignaling> | null>(null)
 
@@ -188,6 +190,14 @@ export function useWebRTC(roomId: string | null) {
     (remoteUid: string, channel: RTCDataChannel) => {
       channel.onopen = () => {
         console.log('Data channel opened:', remoteUid)
+        // Tell a late joiner we're already presenting so they spotlight us.
+        if (useMeetingStore.getState().isScreenSharing) {
+          try {
+            channel.send(JSON.stringify({ type: 'presenting', on: true }))
+          } catch {
+            // best-effort
+          }
+        }
       }
 
       channel.onmessage = (event) => {
@@ -274,6 +284,12 @@ export function useWebRTC(roomId: string | null) {
             case 'typing':
               store.setPeerTyping(remoteUid, !!message.typing)
               break
+            case 'presenting': {
+              const cur = store.presentingUid
+              if (message.on) store.setPresenting(remoteUid)
+              else if (cur === remoteUid) store.setPresenting(null)
+              break
+            }
             case 'msg-reaction':
               if (typeof message.emoji === 'string' && message.msgId) {
                 store.toggleMessageReaction(message.msgId, message.emoji, remoteUid)
@@ -618,6 +634,76 @@ export function useWebRTC(roomId: string | null) {
     [broadcast, localUid, localName, addChatMessage]
   )
 
+  // ── Screen share ──────────────────────────────────────────────────────────
+  // Owned here because it needs the peer senders AND the data channel. We swap
+  // the outgoing video track on every sender (replaceTrack = no renegotiation),
+  // mirror the swap into our own self-view, and broadcast a 'presenting' signal
+  // so every peer spotlights the presenter.
+  const stopScreenShare = useCallback(async () => {
+    const screenStream = screenStreamRef.current
+    const camera = cameraVideoTrackRef.current
+    const stream = useMeetingStore.getState().localStream
+
+    peerConnectionsRef.current.forEach(({ pc }) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+      if (sender && camera) sender.replaceTrack(camera).catch(() => {})
+    })
+
+    // Self-view: swap the screen track back out for the camera.
+    if (stream && screenStream) {
+      screenStream.getVideoTracks().forEach((t) => {
+        if (stream.getTracks().includes(t)) stream.removeTrack(t)
+      })
+      if (camera) stream.addTrack(camera)
+    }
+    screenStream?.getTracks().forEach((t) => t.stop())
+    screenStreamRef.current = null
+    cameraVideoTrackRef.current = null
+
+    const store = useMeetingStore.getState()
+    store.setScreenSharing(false)
+    if (store.presentingUid === localUid) store.setPresenting(null)
+    broadcast({ type: 'presenting', on: false })
+  }, [broadcast, localUid])
+
+  const startScreenShare = useCallback(async () => {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: false,
+    })
+    const screenTrack = screenStream.getVideoTracks()[0]
+    if (!screenTrack) {
+      screenStream.getTracks().forEach((t) => t.stop())
+      throw new Error('No screen track')
+    }
+    screenStreamRef.current = screenStream
+
+    const stream = useMeetingStore.getState().localStream
+    cameraVideoTrackRef.current = stream?.getVideoTracks()[0] ?? null
+
+    peerConnectionsRef.current.forEach(({ pc }) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+      if (sender) sender.replaceTrack(screenTrack).catch(() => {})
+      else if (stream) pc.addTrack(screenTrack, stream) // audio-only joiner → renegotiate
+    })
+
+    // Self-view: show the screen in our own tile.
+    if (stream && cameraVideoTrackRef.current) {
+      stream.removeTrack(cameraVideoTrackRef.current)
+      stream.addTrack(screenTrack)
+    }
+
+    const store = useMeetingStore.getState()
+    store.setScreenSharing(true)
+    store.setPresenting(localUid)
+    broadcast({ type: 'presenting', on: true })
+
+    // User clicks the browser's own "Stop sharing" bar.
+    screenTrack.onended = () => {
+      stopScreenShare()
+    }
+  }, [broadcast, localUid, stopScreenShare])
+
   signalingMethodsRef.current = useSignaling(
     roomId,
     {
@@ -666,5 +752,7 @@ export function useWebRTC(roomId: string | null) {
     sendMessageDelete,
     sendReceipt,
     sendFile,
+    startScreenShare,
+    stopScreenShare,
   }
 }

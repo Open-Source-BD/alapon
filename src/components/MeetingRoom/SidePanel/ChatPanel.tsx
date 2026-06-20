@@ -215,8 +215,16 @@ export function ChatPanel({
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [replyingTo, setReplyingTo] = useState<ReplyRef | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Grow the textarea with its content, up to a cap, then scroll.
+  const autoGrow = () => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const isTypingRef = useRef(false)
   const seenSentRef = useRef<Set<string>>(new Set())
@@ -276,6 +284,7 @@ export function ChatPanel({
     setReplyingTo(null)
     setTyping(false)
     clearTimeout(typingTimeoutRef.current)
+    if (inputRef.current) inputRef.current.style.height = 'auto'
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -411,14 +420,17 @@ export function ChatPanel({
               e.target.value = ''
             }}
           />
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
+            rows={1}
             value={messageText}
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={(e) => {
+              handleChange(e.target.value)
+              autoGrow()
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            className="flex-1 bg-elevated text-white text-sm rounded-lg px-3 py-2 border border-border focus:outline-none focus:border-accent"
+            className="flex-1 resize-none bg-elevated text-white text-sm rounded-lg px-3 py-2 border border-border focus:outline-none focus:border-accent"
           />
           <button
             onClick={handleSendMessage}

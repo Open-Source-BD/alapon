@@ -3,14 +3,11 @@ import { useMeetingStore } from '@/store/meetingStore'
 
 export function useMediaStream() {
   const streamRef = useRef<MediaStream | null>(null)
-  const screenStreamRef = useRef<MediaStream | null>(null)
-  const originalVideoTrackRef = useRef<MediaStreamTrack | null>(null)
   const startedRef = useRef(false)
 
   const setLocalStream = useMeetingStore((s) => s.setLocalStream)
   const setAudioMuted = useMeetingStore((s) => s.setAudioMuted)
   const setVideoOff = useMeetingStore((s) => s.setVideoOff)
-  const setScreenSharing = useMeetingStore((s) => s.setScreenSharing)
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
   const localStream = useMeetingStore((s) => s.localStream)
@@ -124,62 +121,9 @@ export function useMediaStream() {
     setVideoOff(next)
   }
 
-  async function startScreenShare(): Promise<void> {
-    try {
-      if (!streamRef.current) return
-
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true as any,
-        audio: false,
-      })
-
-      const screenTrack = screenStream.getVideoTracks()[0]
-      if (!screenTrack) throw new Error('No screen track')
-
-      const originalTrack = streamRef.current.getVideoTracks()[0]
-      if (!originalTrack) throw new Error('No video track')
-
-      originalVideoTrackRef.current = originalTrack
-
-      streamRef.current.removeTrack(originalTrack)
-      streamRef.current.addTrack(screenTrack)
-      screenStreamRef.current = screenStream
-      setScreenSharing(true)
-
-      // Handle user stopping share via browser UI
-      screenTrack.onended = () => {
-        stopScreenShare()
-      }
-    } catch (error) {
-      console.error('Failed to start screen share:', error)
-      throw error
-    }
-  }
-
-  async function stopScreenShare(): Promise<void> {
-    try {
-      if (!streamRef.current || !originalVideoTrackRef.current) return
-
-      const screenTrack = streamRef.current
-        .getVideoTracks()
-        .find((t) => screenStreamRef.current?.getTracks().includes(t))
-
-      if (screenTrack) {
-        streamRef.current.removeTrack(screenTrack)
-        screenTrack.stop()
-      }
-
-      screenStreamRef.current?.getTracks().forEach((t) => t.stop())
-      screenStreamRef.current = null
-
-      streamRef.current.addTrack(originalVideoTrackRef.current)
-      originalVideoTrackRef.current = null
-      setScreenSharing(false)
-    } catch (error) {
-      console.error('Failed to stop screen share:', error)
-      throw error
-    }
-  }
+  // NOTE: screen sharing lives in useWebRTC — it owns the peer senders (replaceTrack)
+  // and the data channel (the 'presenting' signal). Doing it here only mutated the
+  // local stream and never reached the peers, so remote users saw the camera.
 
   async function getDevices() {
     try {
@@ -212,8 +156,6 @@ export function useMediaStream() {
     stopMedia,
     toggleAudio,
     toggleVideo,
-    startScreenShare,
-    stopScreenShare,
     switchDevices,
     getDevices,
   }
