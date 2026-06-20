@@ -44,6 +44,10 @@ export function VideoTile({
   const setPinned = useMeetingStore((s) => s.setPinned)
   const isPinned = !!uid && pinnedUid === uid
   const showPin = pinnable && !compact && !!uid
+  // Whole-tile tap toggles spotlight (Meet-style), reachable on touch. Works for the
+  // stage, filmstrip and gallery tiles — not the self PiP (which passes no `pinnable`).
+  const canSpotlight = pinnable && !!uid
+  const toggleSpotlight = () => setPinned(isPinned ? null : uid!)
 
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -68,8 +72,12 @@ export function VideoTile({
 
   return (
     <div
+      onClick={canSpotlight ? toggleSpotlight : undefined}
+      title={canSpotlight ? `Spotlight ${name}` : undefined}
+      aria-label={canSpotlight ? `Spotlight ${name}` : undefined}
       className={cn(
         'group relative w-full h-full bg-surface rounded-lg overflow-hidden',
+        canSpotlight && 'cursor-pointer',
         isActiveSpeaker && 'ring-2 ring-accent ring-offset-2 ring-offset-base'
       )}
     >
@@ -150,7 +158,10 @@ export function VideoTile({
       {/* Pin / spotlight control (shows on hover; always tappable on touch) */}
       {showPin && (
         <button
-          onClick={() => setPinned(isPinned ? null : uid!)}
+          onClick={(e) => {
+            e.stopPropagation()
+            toggleSpotlight()
+          }}
           aria-label={isPinned ? 'Unpin from spotlight' : 'Pin to spotlight'}
           className={cn(
             'absolute top-2 right-2 rounded-full bg-black/50 p-1.5 text-white transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-accent hover:bg-black/70',

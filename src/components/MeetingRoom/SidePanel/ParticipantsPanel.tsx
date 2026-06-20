@@ -1,6 +1,7 @@
 import { Mic, MicOff, Video, VideoOff, X, Hand } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { SignalBars } from '../SignalBars'
+import { cn } from '@/lib/utils'
 
 export function ParticipantsPanel() {
   const localName = useMeetingStore((s) => s.localName)
@@ -9,6 +10,12 @@ export function ParticipantsPanel() {
   const isHandRaised = useMeetingStore((s) => s.isHandRaised)
   const peers = useMeetingStore((s) => s.peers)
   const toggleParticipants = useMeetingStore((s) => s.toggleParticipants)
+  const localUid = useMeetingStore((s) => s.localUid)
+  const pinnedUid = useMeetingStore((s) => s.pinnedUid)
+  const setPinned = useMeetingStore((s) => s.setPinned)
+
+  // Tap a row to spotlight that person (toggle).
+  const spotlight = (uid: string) => setPinned(pinnedUid === uid ? null : uid)
 
   return (
     <div className="flex flex-1 min-w-0 flex-col h-full bg-surface">
@@ -26,7 +33,15 @@ export function ParticipantsPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="border-b border-border px-4 py-3">
+        <div
+          onClick={() => spotlight(localUid)}
+          aria-pressed={pinnedUid === localUid}
+          title="Spotlight yourself"
+          className={cn(
+            'cursor-pointer border-b border-border px-4 py-3 transition-colors hover:bg-elevated',
+            pinnedUid === localUid && 'bg-accent/10'
+          )}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
@@ -69,7 +84,16 @@ export function ParticipantsPanel() {
         </div>
 
         {Object.values(peers).map((peer) => (
-          <div key={peer.uid} className="border-b border-border px-4 py-3">
+          <div
+            key={peer.uid}
+            onClick={() => spotlight(peer.uid)}
+            aria-pressed={pinnedUid === peer.uid}
+            title={`Spotlight ${peer.name}`}
+            className={cn(
+              'cursor-pointer border-b border-border px-4 py-3 transition-colors hover:bg-elevated',
+              pinnedUid === peer.uid && 'bg-accent/10'
+            )}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center flex-shrink-0">
