@@ -1,7 +1,57 @@
 @import "tailwindcss";
 
+/* ── Midnight Signal design tokens ──────────────────────────────────────────
+   Single source of truth for Alapon's visual identity. See DESIGN.md.
+   Tailwind v4 turns these into utilities: bg-surface, text-muted, ring-accent,
+   font-display, etc. Change a value here and it propagates everywhere. */
+@theme {
+  --color-base: #0b0e14; /* app background, video stage */
+  --color-surface: #141925; /* top bar, control bar, panels */
+  --color-elevated: #1e2533; /* inputs, secondary buttons, empty tiles */
+  --color-border: #27303f; /* hairline borders / dividers */
+  --color-text: #e6e9ef; /* primary text */
+  --color-muted: #8a93a6; /* secondary text (>= 4.5:1 on base) */
+  --color-accent: #22d3ee; /* links, active toggles, focus rings, primary CTA */
+  --color-accent-hover: #38def6;
+  --color-accent-ink: #06141a; /* text/icon ON the cyan accent */
+  --color-danger: #e5484d; /* leave button + errors (works as bg w/ white icon and as text on dark) */
+  --color-danger-hover: #f2555a;
+  --color-success: #34d399; /* mic/cam on, success */
+  --color-warn: #fbbf24; /* hand raise, reconnecting */
+
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
 @layer base {
   body {
-    @apply bg-gray-950 text-gray-100;
+    @apply bg-base text-text font-sans;
+  }
+}
+
+/* Floating reaction emoji rise and fade over the call stage. */
+@keyframes reaction-float {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(-12px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-230px) scale(1.15);
+    opacity: 0;
+  }
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

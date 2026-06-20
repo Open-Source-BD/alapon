@@ -7,6 +7,7 @@ import { VideoGrid } from './VideoGrid'
 import { ControlBar } from './ControlBar'
 import { ChatPanel } from './SidePanel/ChatPanel'
 import { ParticipantsPanel } from './SidePanel/ParticipantsPanel'
+import { ReactionsOverlay } from './ReactionsOverlay'
 import { Toaster } from '../Toaster'
 
 export function MeetingRoom() {
@@ -28,7 +29,7 @@ export function MeetingRoom() {
   // data channel. It also drives active-speaker detection internally. Anything
   // that needs to send chat (ChatPanel) gets it from here via props — calling
   // useWebRTC again would spin up a second, competing WebRTC stack.
-  const { sendChatMessage } = useWebRTC(roomId)
+  const { sendChatMessage, sendReaction, sendTyping } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [linkCopied, setLinkCopied] = useState(false)
@@ -84,21 +85,21 @@ export function MeetingRoom() {
   const isPanelOpen = isChatOpen || isParticipantsOpen
 
   return (
-    <div className="flex h-screen flex-col bg-gray-950 text-white overflow-hidden">
+    <div className="flex h-screen flex-col bg-base text-white overflow-hidden">
       <Toaster />
 
       {/* Top bar — app identity, encryption status, participant count, and the
           invite action (always visible, including on mobile). */}
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-800 px-3 py-2 sm:px-4 sm:py-3">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-semibold text-white">Alapon</span>
+          <span className="font-display font-semibold text-text">Alapon</span>
           {isEncrypted && (
             <span title="End-to-end key in URL fragment" className="hidden sm:inline-flex items-center">
-              <Lock className="w-3.5 h-3.5 text-green-400" />
+              <Lock className="w-3.5 h-3.5 text-success" />
             </span>
           )}
-          <span className="text-gray-600">|</span>
-          <span className="inline-flex items-center gap-1 text-sm text-gray-400 whitespace-nowrap">
+          <span className="text-muted">|</span>
+          <span className="inline-flex items-center gap-1 text-sm text-muted whitespace-nowrap">
             <Users className="w-3.5 h-3.5" />
             {participantCount}
           </span>
@@ -106,8 +107,8 @@ export function MeetingRoom() {
         <button
           onClick={handleCopyInvite}
           aria-label="Copy invite link"
-          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-            linkCopied ? 'bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+            linkCopied ? 'bg-success text-accent-ink' : 'bg-accent hover:bg-accent-hover text-accent-ink'
           }`}
         >
           {linkCopied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
@@ -120,27 +121,30 @@ export function MeetingRoom() {
       <div className="relative flex flex-1 min-h-0">
         <div className="flex flex-1 flex-col min-w-0">
           {signalingError && (
-            <div className="flex items-center justify-between gap-4 bg-red-900/40 border-b border-red-700 px-4 py-2 text-sm text-red-200">
+            <div className="flex items-center justify-between gap-4 bg-danger/10 border-b border-danger/40 px-4 py-2 text-sm text-danger">
               <span>{signalingError}</span>
               <button
                 onClick={() => setSignalingError(null)}
-                className="text-red-300 hover:text-white text-xs underline whitespace-nowrap"
+                className="text-danger hover:text-white text-xs underline whitespace-nowrap"
               >
                 Dismiss
               </button>
             </div>
           )}
-          <VideoGrid />
-          <ControlBar onLeave={handleLeave} />
+          <div className="relative flex flex-1 min-h-0">
+            <VideoGrid />
+            <ReactionsOverlay />
+          </div>
+          <ControlBar onLeave={handleLeave} onReaction={sendReaction} />
         </div>
 
         {isPanelOpen && (
           <div
-            className="absolute inset-x-0 bottom-0 top-auto z-20 flex h-[72%] rounded-t-2xl border-t border-gray-700 bg-gray-900 shadow-2xl
+            className="absolute inset-x-0 bottom-0 top-auto z-20 flex h-[72%] rounded-t-2xl border-t border-border bg-surface shadow-2xl
                        sm:static sm:h-auto sm:w-80 sm:rounded-none sm:border-t-0 sm:border-l sm:shadow-none"
           >
             {isChatOpen ? (
-              <ChatPanel sendChatMessage={sendChatMessage} />
+              <ChatPanel sendChatMessage={sendChatMessage} sendTyping={sendTyping} />
             ) : (
               <ParticipantsPanel />
             )}

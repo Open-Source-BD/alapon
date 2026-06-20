@@ -157,10 +157,10 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
   const isJoining = !!initialRoomId
 
   return (
-    <div className="w-full min-h-screen bg-gray-950 text-white flex items-center justify-center p-4">
+    <div className="w-full min-h-screen bg-base text-text flex items-center justify-center p-4">
       <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="flex flex-col gap-4">
-          <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-700">
+          <div className="relative aspect-video bg-surface rounded-lg overflow-hidden border border-border">
             <video
               ref={videoRef}
               autoPlay
@@ -170,11 +170,11 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
             />
             {/* Non-destructive error overlay with retry — keeps the layout. */}
             {mediaError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900/90 px-4 text-center">
-                <p className="text-red-400 text-sm">{mediaError}</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface/90 px-4 text-center">
+                <p className="text-danger text-sm">{mediaError}</p>
                 <button
                   onClick={startMedia}
-                  className="flex items-center gap-2 rounded-lg bg-gray-700 hover:bg-gray-600 px-4 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="flex items-center gap-2 rounded-lg bg-elevated hover:bg-border px-4 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <RefreshCw className="w-4 h-4" /> Retry
                 </button>
@@ -187,8 +187,8 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
               onClick={mediaStream.toggleAudio}
               aria-pressed={micMuted}
               aria-label={micMuted ? 'Unmute microphone' : 'Mute microphone'}
-              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                micMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
+              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                micMuted ? 'bg-danger hover:bg-danger-hover' : 'bg-elevated hover:bg-border'
               }`}
             >
               {micMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -198,8 +198,8 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
               onClick={mediaStream.toggleVideo}
               aria-pressed={cameraOff}
               aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'}
-              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                cameraOff ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
+              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                cameraOff ? 'bg-danger hover:bg-danger-hover' : 'bg-elevated hover:bg-border'
               }`}
             >
               {cameraOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
@@ -211,12 +211,12 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
           {(cameras.length > 1 || mics.length > 1) && (
             <div className="grid grid-cols-1 gap-2">
               {cameras.length > 1 && (
-                <label className="text-xs text-gray-400">
+                <label className="text-xs text-muted">
                   Camera
                   <select
                     value={selectedCamera}
                     onChange={(e) => handleCameraChange(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     {cameras.map((d) => (
                       <option key={d.deviceId} value={d.deviceId}>
@@ -227,12 +227,12 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
                 </label>
               )}
               {mics.length > 1 && (
-                <label className="text-xs text-gray-400">
+                <label className="text-xs text-muted">
                   Microphone
                   <select
                     value={selectedMic}
                     onChange={(e) => handleMicChange(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     {mics.map((d) => (
                       <option key={d.deviceId} value={d.deviceId}>
@@ -248,12 +248,12 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Alapon</h1>
-            <p className="text-gray-400">Encrypted video meetings</p>
+            <h1 className="font-display text-4xl font-bold mb-2">Alapon</h1>
+            <p className="text-muted">Encrypted video meetings</p>
           </div>
 
           <div>
-            <label htmlFor="prejoin-name" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="prejoin-name" className="block text-sm font-medium text-text mb-2">
               Your name
             </label>
             <input
@@ -262,34 +262,34 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter your name"
-              className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:border-blue-500"
+              className="w-full bg-elevated text-white rounded-lg px-4 py-3 border border-border focus:outline-none focus:border-accent"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   handleJoin(isJoining ? false : true)
                 }
               }}
             />
-            {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+            {error && <p className="mt-2 text-sm text-danger">{error}</p>}
           </div>
 
           <button
             onClick={() => handleJoin(isJoining ? false : true)}
             disabled={isLoading || !name.trim()}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="w-full py-3 bg-accent text-accent-ink hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {isLoading ? 'Joining...' : isJoining ? 'Join Meeting' : 'Create & Start Meeting'}
           </button>
 
           {isJoining && (
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-              <p className="text-xs text-gray-400 mb-2">Meeting link:</p>
-              <div className="bg-gray-900 px-3 py-2 rounded text-sm text-gray-300 break-all font-mono">
+            <div className="bg-elevated border border-border rounded-lg p-4">
+              <p className="text-xs text-muted mb-2">Meeting link:</p>
+              <div className="bg-surface px-3 py-2 rounded text-sm text-text break-all font-mono">
                 {window.location.href}
               </div>
               <button
                 onClick={handleCopyLink}
-                className={`mt-2 w-full text-xs py-1 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                  copied ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'
+                className={`mt-2 w-full text-xs py-1 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                  copied ? 'bg-success text-accent-ink' : 'bg-elevated hover:bg-border'
                 }`}
               >
                 {copied ? 'Copied!' : 'Copy Link'}
@@ -297,7 +297,7 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
             </div>
           )}
 
-          <div className="text-xs text-gray-500 space-y-1">
+          <div className="text-xs text-muted space-y-1">
             <p>✓ Peer-to-peer encrypted calls</p>
             <p>✓ No accounts needed</p>
             <p>✓ Screen sharing & chat included</p>

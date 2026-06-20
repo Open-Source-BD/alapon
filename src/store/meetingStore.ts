@@ -21,6 +21,15 @@ export interface ChatMessage {
   timestamp: number
 }
 
+export interface Reaction {
+  id: string
+  uid: string
+  emoji: string
+  ts: number
+}
+
+export type Layout = 'auto' | 'grid'
+
 export type ToastType = 'info' | 'success' | 'error'
 
 export interface Toast {
@@ -71,11 +80,24 @@ export interface MeetingState {
   toggleChat: () => void
   toggleParticipants: () => void
 
+  // Layout / pinning
+  pinnedUid: string | null
+  setPinned: (uid: string | null) => void
+  layout: Layout
+  setLayout: (layout: Layout) => void
+
+  // Reactions (ephemeral floating emoji)
+  reactions: Reaction[]
+  addReaction: (uid: string, emoji: string, id?: string) => void
+  removeReaction: (id: string) => void
+
   // Chat
   chatMessages: ChatMessage[]
   unreadChatCount: number
+  peersTyping: Record<string, boolean>
   addChatMessage: (message: ChatMessage) => void
   clearChatMessages: () => void
+  setPeerTyping: (uid: string, typing: boolean) => void
 
   // Toasts (transient user feedback)
   toasts: Toast[]
@@ -111,8 +133,12 @@ const initialState = {
   activeSpeakerUid: null,
   isChatOpen: false,
   isParticipantsOpen: false,
+  pinnedUid: null,
+  layout: 'auto' as Layout,
+  reactions: [] as Reaction[],
   chatMessages: [],
   unreadChatCount: 0,
+  peersTyping: {} as Record<string, boolean>,
   toasts: [] as Toast[],
   encryptionKey: null,
   isEncrypted: false,
@@ -122,6 +148,7 @@ const initialState = {
 // Monotonic id source for toasts/messages. Date.now()+counter avoids collisions
 // when several toasts fire in the same millisecond.
 let _toastSeq = 0
+let _reactionSeq = 0
 
 export const useMeetingStore = create<MeetingState>()(
   immer((set) => ({
@@ -160,6 +187,8 @@ export const useMeetingStore = create<MeetingState>()(
     removePeer: (uid: string) =>
       set((state) => {
         delete state.peers[uid]
+        delete state.peersTyping[uid]
+        if (state.pinnedUid === uid) state.pinnedUid = null
       }),
 
     updatePeer: (uid: string, patch: Partial<PeerState>) =>
@@ -191,6 +220,32 @@ export const useMeetingStore = create<MeetingState>()(
       set((state) => {
         state.isParticipantsOpen = !state.isParticipantsOpen
         if (state.isParticipantsOpen) state.isChatOpen = false
+      }),
+
+    setPinned: (uid: string | null) => set({ pinnedUid: uid }),
+    setLayout: (layout: Layout) => set({ layout }),
+
+    addReaction: (uid: string, emoji: string, id?: string) =>
+      set((state) => {
+        _reactionSeq += 1
+        state.reactions.push({
+          id: id ?? `r-${Date.now()}-${_reactionSeq}`,
+          uid,
+          emoji,
+          ts: Date.now(),
+        })
+        // Cap so a spam burst can't grow unbounded before the overlay expires them.
+        if (state.reactions.length > 30) state.reactions.shift()
+      }),
+    removeReaction: (id: string) =>
+      set((state) => {
+        state.reactions = state.reactions.filter((r) => r.id !== id)
+      }),
+
+    setPeerTyping: (uid: string, typing: boolean) =>
+      set((state) => {
+        if (typing) state.peersTyping[uid] = true
+        else delete state.peersTyping[uid]
       }),
 
     addChatMessage: (message: ChatMessage) =>

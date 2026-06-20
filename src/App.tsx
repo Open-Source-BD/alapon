@@ -17,10 +17,10 @@ function App() {
 
   if (!mounted) {
     return (
-      <div className="w-full h-screen bg-gray-950 flex items-center justify-center">
+      <div className="w-full h-screen bg-base flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-white mb-4">Alapon</h1>
-          <p className="text-gray-400 text-lg">Initializing...</p>
+          <h1 className="font-display text-5xl font-bold text-text mb-4">Alapon</h1>
+          <p className="text-muted text-lg">Initializing...</p>
         </div>
       </div>
     )

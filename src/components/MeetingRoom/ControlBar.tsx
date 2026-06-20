@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Mic,
   MicOff,
@@ -9,13 +9,17 @@ import {
   MessageSquare,
   Users,
   Hand,
+  Smile,
+  LayoutGrid,
 } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
+import { REACTION_EMOJIS } from '@/lib/emoji'
 import { cn } from '@/lib/utils'
 
 interface ControlBarProps {
   onLeave: () => void
+  onReaction: (emoji: string) => void
 }
 
 interface ControlButtonProps {
@@ -38,11 +42,19 @@ function ControlButton({
   children,
 }: ControlButtonProps) {
   const activeBg = {
-    red: 'bg-red-600 hover:bg-red-700',
-    green: 'bg-green-600 hover:bg-green-700',
-    amber: 'bg-amber-500 hover:bg-amber-600',
-    blue: 'bg-blue-600 hover:bg-blue-700',
+    red: 'bg-danger hover:bg-danger-hover',
+    green: 'bg-success hover:bg-success',
+    amber: 'bg-warn hover:bg-warn',
+    blue: 'bg-accent hover:bg-accent-hover',
   }[accent]
+
+  // The accent surfaces (cyan/green/amber) are light, so their icon must be dark
+  // ink for contrast. Danger (red) and the inactive elevated surface take white.
+  const iconColor = !active
+    ? 'text-text'
+    : accent === 'red'
+      ? 'text-white'
+      : 'text-accent-ink'
 
   return (
     <button
@@ -51,14 +63,15 @@ function ControlButton({
       aria-pressed={active}
       title={label}
       className={cn(
-        'relative rounded-full p-3 text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900',
-        active ? activeBg : 'bg-gray-700 hover:bg-gray-600',
+        'relative rounded-full p-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+        iconColor,
+        active ? activeBg : 'bg-elevated hover:bg-border',
         className
       )}
     >
       {children}
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white">
           {badge > 9 ? '9+' : badge}
         </span>
       )}
@@ -66,7 +79,7 @@ function ControlButton({
   )
 }
 
-export function ControlBar({ onLeave }: ControlBarProps) {
+export function ControlBar({ onLeave, onReaction }: ControlBarProps) {
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
   const isScreenSharing = useMeetingStore((s) => s.isScreenSharing)
@@ -74,13 +87,29 @@ export function ControlBar({ onLeave }: ControlBarProps) {
   const isChatOpen = useMeetingStore((s) => s.isChatOpen)
   const isParticipantsOpen = useMeetingStore((s) => s.isParticipantsOpen)
   const unreadChatCount = useMeetingStore((s) => s.unreadChatCount)
+  const layout = useMeetingStore((s) => s.layout)
 
   const toggleChat = useMeetingStore((s) => s.toggleChat)
   const toggleParticipants = useMeetingStore((s) => s.toggleParticipants)
   const toggleHandRaise = useMeetingStore((s) => s.toggleHandRaise)
+  const setLayout = useMeetingStore((s) => s.setLayout)
+  const setPinned = useMeetingStore((s) => s.setPinned)
   const addToast = useMeetingStore((s) => s.addToast)
 
   const mediaStream = useMediaStream()
+  const [reactionsOpen, setReactionsOpen] = useState(false)
+
+  const handleReaction = (emoji: string) => {
+    onReaction(emoji)
+    setReactionsOpen(false)
+  }
+
+  const handleToggleLayout = () => {
+    // Grid forces the gallery; auto returns to the spotlight/PiP behavior. Either
+    // way, clear any manual pin so the layout choice takes effect.
+    setPinned(null)
+    setLayout(layout === 'grid' ? 'auto' : 'grid')
+  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -122,7 +151,7 @@ export function ControlBar({ onLeave }: ControlBarProps) {
   }
 
   return (
-    <div className="shrink-0 bg-gray-900 border-t border-gray-700 px-2 py-3 sm:px-6">
+    <div className="shrink-0 bg-surface border-t border-border px-2 py-3 sm:px-6">
       <div className="flex items-center justify-center gap-2 sm:gap-3">
         <ControlButton
           onClick={mediaStream.toggleAudio}
@@ -149,6 +178,49 @@ export function ControlBar({ onLeave }: ControlBarProps) {
           accent="amber"
         >
           <Hand className="w-5 h-5" />
+        </ControlButton>
+
+        {/* Reactions: button opens an emoji popover above the bar. */}
+        <div className="relative">
+          <ControlButton
+            onClick={() => setReactionsOpen((o) => !o)}
+            label="Send a reaction"
+            active={reactionsOpen}
+            accent="blue"
+          >
+            <Smile className="w-5 h-5" />
+          </ControlButton>
+          {reactionsOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-20"
+                onClick={() => setReactionsOpen(false)}
+                aria-hidden
+              />
+              <div className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 gap-1 rounded-full border border-border bg-elevated px-2 py-1.5 shadow-xl">
+                {REACTION_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => handleReaction(emoji)}
+                    aria-label={`React ${emoji}`}
+                    className="rounded-full px-1.5 text-2xl transition-transform hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <ControlButton
+          onClick={handleToggleLayout}
+          label={layout === 'grid' ? 'Switch to spotlight layout' : 'Switch to grid layout'}
+          active={layout === 'grid'}
+          accent="blue"
+          className="hidden sm:inline-flex"
+        >
+          <LayoutGrid className="w-5 h-5" />
         </ControlButton>
 
         {/* Screen share is desktop-only (getDisplayMedia is unreliable on mobile) */}
