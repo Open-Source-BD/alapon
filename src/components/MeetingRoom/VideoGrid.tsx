@@ -34,7 +34,7 @@ export function VideoGrid() {
   if (peerList.length === 1) {
     const peer = peerList[0]
     return (
-      <div className="relative flex-1 bg-gray-900 p-2 sm:p-4 min-h-0">
+      <div className="relative flex-1 bg-surface p-2 sm:p-4 min-h-0">
         <div className="h-full w-full">
           <VideoTile
             name={peer.name}
@@ -57,7 +57,7 @@ export function VideoGrid() {
   // Alone — your own video fills the stage.
   if (peerList.length === 0) {
     return (
-      <div className="flex-1 bg-gray-900 p-2 sm:p-4 min-h-0">
+      <div className="flex-1 bg-surface p-2 sm:p-4 min-h-0">
         <div className="h-full w-full">{localTile(false)}</div>
       </div>
     )
@@ -65,7 +65,7 @@ export function VideoGrid() {
 
   // Group — gallery grid including self.
   return (
-    <div className="flex-1 bg-gray-900 p-2 sm:p-4 overflow-auto min-h-0">
+    <div className="flex-1 bg-surface p-2 sm:p-4 overflow-auto min-h-0">
       <div
         className="h-full grid gap-2"
         style={{

@@ -38,11 +38,19 @@ function ControlButton({
   children,
 }: ControlButtonProps) {
   const activeBg = {
-    red: 'bg-red-600 hover:bg-red-700',
-    green: 'bg-green-600 hover:bg-green-700',
-    amber: 'bg-amber-500 hover:bg-amber-600',
-    blue: 'bg-blue-600 hover:bg-blue-700',
+    red: 'bg-danger hover:bg-danger-hover',
+    green: 'bg-success hover:bg-success',
+    amber: 'bg-warn hover:bg-warn',
+    blue: 'bg-accent hover:bg-accent-hover',
   }[accent]
+
+  // The accent surfaces (cyan/green/amber) are light, so their icon must be dark
+  // ink for contrast. Danger (red) and the inactive elevated surface take white.
+  const iconColor = !active
+    ? 'text-text'
+    : accent === 'red'
+      ? 'text-white'
+      : 'text-accent-ink'
 
   return (
     <button
@@ -51,14 +59,15 @@ function ControlButton({
       aria-pressed={active}
       title={label}
       className={cn(
-        'relative rounded-full p-3 text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900',
-        active ? activeBg : 'bg-gray-700 hover:bg-gray-600',
+        'relative rounded-full p-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+        iconColor,
+        active ? activeBg : 'bg-elevated hover:bg-border',
         className
       )}
     >
       {children}
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white">
           {badge > 9 ? '9+' : badge}
         </span>
       )}
@@ -122,7 +131,7 @@ export function ControlBar({ onLeave }: ControlBarProps) {
   }
 
   return (
-    <div className="shrink-0 bg-gray-900 border-t border-gray-700 px-2 py-3 sm:px-6">
+    <div className="shrink-0 bg-surface border-t border-border px-2 py-3 sm:px-6">
       <div className="flex items-center justify-center gap-2 sm:gap-3">
         <ControlButton
           onClick={mediaStream.toggleAudio}

@@ -34,13 +34,13 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
   }
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col h-full bg-gray-900">
-      <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
+    <div className="flex flex-1 min-w-0 flex-col h-full bg-surface">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="font-semibold text-white">Chat</h3>
         <button
           onClick={toggleChat}
           aria-label="Close chat panel"
-          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="p-1 rounded text-muted hover:text-white hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <X className="w-5 h-5" />
         </button>
@@ -48,7 +48,7 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {chatMessages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center h-full text-muted">
             <p className="text-sm">No messages yet</p>
           </div>
         ) : (
@@ -56,17 +56,17 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
             {chatMessages.map((msg) => (
               <div key={msg.id} className="flex flex-col gap-1">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-semibold text-blue-400">
+                  <span className="text-xs font-semibold text-accent">
                     {msg.fromUid === localUid ? 'You' : msg.fromName}
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-muted">
                     {new Date(msg.timestamp).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
                   </span>
                 </div>
-                <p className="text-sm text-gray-200 break-words">{msg.text}</p>
+                <p className="text-sm text-text break-words">{msg.text}</p>
               </div>
             ))}
             <div ref={messagesEndRef} />
@@ -74,7 +74,7 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
         )}
       </div>
 
-      <div className="border-t border-gray-700 p-4">
+      <div className="border-t border-border p-4">
         <div className="flex gap-2">
           <input
             type="text"
@@ -82,17 +82,17 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
             onChange={(e) => setMessageText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            className="flex-1 bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-blue-500"
+            className="flex-1 bg-elevated text-white text-sm rounded-lg px-3 py-2 border border-border focus:outline-none focus:border-accent"
           />
           <button
             onClick={handleSendMessage}
             aria-label="Send message"
-            className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="p-2 bg-accent hover:bg-accent-hover rounded-lg text-accent-ink transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-2">Press Shift+Enter for new line</p>
+        <p className="text-xs text-muted mt-2">Press Shift+Enter for new line</p>
       </div>
     </div>
   )

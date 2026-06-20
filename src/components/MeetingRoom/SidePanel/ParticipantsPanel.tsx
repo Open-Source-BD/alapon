@@ -10,57 +10,57 @@ export function ParticipantsPanel() {
   const toggleParticipants = useMeetingStore((s) => s.toggleParticipants)
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col h-full bg-gray-900">
-      <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
+    <div className="flex flex-1 min-w-0 flex-col h-full bg-surface">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="font-semibold text-white">
           Participants ({1 + Object.keys(peers).length})
         </h3>
         <button
           onClick={toggleParticipants}
           aria-label="Close participants panel"
-          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="p-1 rounded text-muted hover:text-white hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="border-b border-gray-700 px-4 py-3">
+        <div className="border-b border-border px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-semibold text-sm">
+              <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
+                <span className="text-accent-ink font-semibold text-sm">
                   {localName.split(' ').map((n) => n[0]).join('').toUpperCase() || 'U'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
-                  {localName || 'You'} <span className="text-xs text-gray-400">(You)</span>
+                  {localName || 'You'} <span className="text-xs text-muted">(You)</span>
                 </p>
               </div>
             </div>
             <div className="flex gap-2 flex-shrink-0 ml-2">
               {isHandRaised && (
-                <div className="p-1.5 rounded bg-amber-500/20">
-                  <Hand className="w-3 h-3 text-amber-400" />
+                <div className="p-1.5 rounded bg-warn/20">
+                  <Hand className="w-3 h-3 text-warn" />
                 </div>
               )}
               {isAudioMuted ? (
-                <div className="p-1.5 rounded bg-gray-700">
-                  <MicOff className="w-3 h-3 text-red-400" />
+                <div className="p-1.5 rounded bg-elevated">
+                  <MicOff className="w-3 h-3 text-danger" />
                 </div>
               ) : (
-                <div className="p-1.5 rounded bg-gray-700">
-                  <Mic className="w-3 h-3 text-green-400" />
+                <div className="p-1.5 rounded bg-elevated">
+                  <Mic className="w-3 h-3 text-success" />
                 </div>
               )}
               {isVideoOff ? (
-                <div className="p-1.5 rounded bg-gray-700">
-                  <VideoOff className="w-3 h-3 text-red-400" />
+                <div className="p-1.5 rounded bg-elevated">
+                  <VideoOff className="w-3 h-3 text-danger" />
                 </div>
               ) : (
-                <div className="p-1.5 rounded bg-gray-700">
-                  <Video className="w-3 h-3 text-green-400" />
+                <div className="p-1.5 rounded bg-elevated">
+                  <Video className="w-3 h-3 text-success" />
                 </div>
               )}
             </div>
@@ -68,10 +68,10 @@ export function ParticipantsPanel() {
         </div>
 
         {Object.values(peers).map((peer) => (
-          <div key={peer.uid} className="border-b border-gray-700 px-4 py-3">
+          <div key={peer.uid} className="border-b border-border px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center flex-shrink-0">
                   <span className="text-white font-semibold text-sm">
                     {peer.name.split(' ').map((n) => n[0]).join('').toUpperCase() || 'U'}
                   </span>
@@ -83,10 +83,10 @@ export function ParticipantsPanel() {
                       <span
                         className={`text-xs px-2 py-0.5 rounded ${
                           peer.connectionState === 'connected'
-                            ? 'bg-green-500/20 text-green-400'
+                            ? 'bg-success/20 text-success'
                             : peer.connectionState === 'connecting'
-                              ? 'bg-yellow-500/20 text-yellow-400'
-                              : 'bg-red-500/20 text-red-400'
+                              ? 'bg-warn/20 text-warn'
+                              : 'bg-danger/20 text-danger'
                         }`}
                       >
                         {peer.connectionState === 'connected' ? 'Connected' : peer.connectionState}
@@ -97,26 +97,26 @@ export function ParticipantsPanel() {
               </div>
               <div className="flex gap-2 flex-shrink-0 ml-2">
                 {peer.isHandRaised && (
-                  <div className="p-1.5 rounded bg-amber-500/20">
-                    <Hand className="w-3 h-3 text-amber-400" />
+                  <div className="p-1.5 rounded bg-warn/20">
+                    <Hand className="w-3 h-3 text-warn" />
                   </div>
                 )}
                 {peer.isAudioMuted ? (
-                  <div className="p-1.5 rounded bg-gray-700">
-                    <MicOff className="w-3 h-3 text-red-400" />
+                  <div className="p-1.5 rounded bg-elevated">
+                    <MicOff className="w-3 h-3 text-danger" />
                   </div>
                 ) : (
-                  <div className="p-1.5 rounded bg-gray-700">
-                    <Mic className="w-3 h-3 text-green-400" />
+                  <div className="p-1.5 rounded bg-elevated">
+                    <Mic className="w-3 h-3 text-success" />
                   </div>
                 )}
                 {peer.isVideoOff ? (
-                  <div className="p-1.5 rounded bg-gray-700">
-                    <VideoOff className="w-3 h-3 text-red-400" />
+                  <div className="p-1.5 rounded bg-elevated">
+                    <VideoOff className="w-3 h-3 text-danger" />
                   </div>
                 ) : (
-                  <div className="p-1.5 rounded bg-gray-700">
-                    <Video className="w-3 h-3 text-green-400" />
+                  <div className="p-1.5 rounded bg-elevated">
+                    <Video className="w-3 h-3 text-success" />
                   </div>
                 )}
               </div>
@@ -125,7 +125,7 @@ export function ParticipantsPanel() {
         ))}
 
         {Object.keys(peers).length === 0 && (
-          <div className="flex items-center justify-center h-full text-gray-500 p-4">
+          <div className="flex items-center justify-center h-full text-muted p-4">
             <p className="text-sm text-center">Waiting for others to join...</p>
           </div>
         )}

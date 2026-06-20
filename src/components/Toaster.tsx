@@ -10,9 +10,15 @@ const ICONS = {
 } as const
 
 const STYLES = {
-  success: 'border-green-600 bg-green-950/90 text-green-100',
-  info: 'border-gray-600 bg-gray-900/95 text-gray-100',
-  error: 'border-red-600 bg-red-950/90 text-red-100',
+  success: 'border-success/60 bg-surface text-text',
+  info: 'border-border bg-surface text-text',
+  error: 'border-danger/60 bg-surface text-text',
+} as const
+
+const ICON_COLOR = {
+  success: 'text-success',
+  info: 'text-accent',
+  error: 'text-danger',
 } as const
 
 function ToastRow({ toast }: { toast: Toast }) {
@@ -34,7 +40,7 @@ function ToastRow({ toast }: { toast: Toast }) {
         STYLES[toast.type]
       )}
     >
-      <Icon className="w-4 h-4 shrink-0" />
+      <Icon className={cn('w-4 h-4 shrink-0', ICON_COLOR[toast.type])} />
       <span className="flex-1">{toast.message}</span>
       <button
         onClick={() => removeToast(toast.id)}
