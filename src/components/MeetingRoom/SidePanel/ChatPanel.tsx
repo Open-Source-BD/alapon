@@ -39,8 +39,8 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
         <h3 className="font-semibold text-white">Chat</h3>
         <button
           onClick={toggleChat}
-          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800"
-          title="Close chat"
+          aria-label="Close chat panel"
+          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
           <X className="w-5 h-5" />
         </button>
@@ -86,7 +86,8 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
           />
           <button
             onClick={handleSendMessage}
-            className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors"
+            aria-label="Send message"
+            className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
           >
             <Send className="w-4 h-4" />
           </button>

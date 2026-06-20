@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Lock, Link2, Check, Users } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useWebRTC } from '@/hooks/useWebRTC'
 import { useMediaStream } from '@/hooks/useMediaStream'
@@ -6,14 +7,18 @@ import { VideoGrid } from './VideoGrid'
 import { ControlBar } from './ControlBar'
 import { ChatPanel } from './SidePanel/ChatPanel'
 import { ParticipantsPanel } from './SidePanel/ParticipantsPanel'
+import { Toaster } from '../Toaster'
 
 export function MeetingRoom() {
   const roomId = useMeetingStore((s) => s.roomId)
   const isChatOpen = useMeetingStore((s) => s.isChatOpen)
   const isParticipantsOpen = useMeetingStore((s) => s.isParticipantsOpen)
   const phase = useMeetingStore((s) => s.phase)
+  const isEncrypted = useMeetingStore((s) => s.isEncrypted)
+  const peers = useMeetingStore((s) => s.peers)
   const signalingError = useMeetingStore((s) => s.signalingError)
   const setSignalingError = useMeetingStore((s) => s.setSignalingError)
+  const addToast = useMeetingStore((s) => s.addToast)
 
   const setPhase = useMeetingStore((s) => s.setPhase)
   const setJoinedAt = useMeetingStore((s) => s.setJoinedAt)
@@ -26,6 +31,9 @@ export function MeetingRoom() {
   const { sendChatMessage } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const participantCount = 1 + Object.keys(peers).length
 
   useEffect(() => {
     if (phase !== 'inmeeting') {
@@ -34,6 +42,17 @@ export function MeetingRoom() {
 
     useMeetingStore.getState().setJoinedAt(Date.now())
   }, [phase])
+
+  const handleCopyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setLinkCopied(true)
+      addToast('Invite link copied to clipboard', 'success')
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch {
+      addToast('Could not copy — copy the URL from the address bar', 'error')
+    }
+  }
 
   const handleLeave = async () => {
     try {
@@ -65,34 +84,69 @@ export function MeetingRoom() {
   const isPanelOpen = isChatOpen || isParticipantsOpen
 
   return (
-    <div className="relative flex h-screen bg-gray-950 text-white overflow-hidden">
-      <div className="flex-1 flex flex-col min-w-0">
-        {signalingError && (
-          <div className="flex items-center justify-between gap-4 bg-red-900/40 border-b border-red-700 px-4 py-2 text-sm text-red-200">
-            <span>{signalingError}</span>
-            <button
-              onClick={() => setSignalingError(null)}
-              className="text-red-300 hover:text-white text-xs underline whitespace-nowrap"
-            >
-              Dismiss
-            </button>
+    <div className="flex h-screen flex-col bg-gray-950 text-white overflow-hidden">
+      <Toaster />
+
+      {/* Top bar — app identity, encryption status, participant count, and the
+          invite action (always visible, including on mobile). */}
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-800 px-3 py-2 sm:px-4 sm:py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-semibold text-white">Alapon</span>
+          {isEncrypted && (
+            <span title="End-to-end key in URL fragment" className="hidden sm:inline-flex items-center">
+              <Lock className="w-3.5 h-3.5 text-green-400" />
+            </span>
+          )}
+          <span className="text-gray-600">|</span>
+          <span className="inline-flex items-center gap-1 text-sm text-gray-400 whitespace-nowrap">
+            <Users className="w-3.5 h-3.5" />
+            {participantCount}
+          </span>
+        </div>
+        <button
+          onClick={handleCopyInvite}
+          aria-label="Copy invite link"
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+            linkCopied ? 'bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+        >
+          {linkCopied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+          <span>{linkCopied ? 'Copied' : 'Invite'}</span>
+        </button>
+      </header>
+
+      {/* Body: stage on the left, panel docked right (desktop) or as a bottom
+          sheet (mobile). */}
+      <div className="relative flex flex-1 min-h-0">
+        <div className="flex flex-1 flex-col min-w-0">
+          {signalingError && (
+            <div className="flex items-center justify-between gap-4 bg-red-900/40 border-b border-red-700 px-4 py-2 text-sm text-red-200">
+              <span>{signalingError}</span>
+              <button
+                onClick={() => setSignalingError(null)}
+                className="text-red-300 hover:text-white text-xs underline whitespace-nowrap"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+          <VideoGrid />
+          <ControlBar onLeave={handleLeave} />
+        </div>
+
+        {isPanelOpen && (
+          <div
+            className="absolute inset-x-0 bottom-0 top-auto z-20 flex h-[72%] rounded-t-2xl border-t border-gray-700 bg-gray-900 shadow-2xl
+                       sm:static sm:h-auto sm:w-80 sm:rounded-none sm:border-t-0 sm:border-l sm:shadow-none"
+          >
+            {isChatOpen ? (
+              <ChatPanel sendChatMessage={sendChatMessage} />
+            ) : (
+              <ParticipantsPanel />
+            )}
           </div>
         )}
-        <VideoGrid />
-        <ControlBar onLeave={handleLeave} />
       </div>
-
-      {/* Side panel: hidden entirely when closed (no wasted column). On phones
-          it overlays the call full-width; on larger screens it docks at 320px. */}
-      {isPanelOpen && (
-        <div className="absolute inset-0 z-20 bg-gray-900 sm:static sm:inset-auto sm:w-80 border-l border-gray-700 flex">
-          {isChatOpen ? (
-            <ChatPanel sendChatMessage={sendChatMessage} />
-          ) : (
-            <ParticipantsPanel />
-          )}
-        </div>
-      )}
     </div>
   )
 }

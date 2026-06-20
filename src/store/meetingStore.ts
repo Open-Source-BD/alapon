@@ -21,6 +21,14 @@ export interface ChatMessage {
   timestamp: number
 }
 
+export type ToastType = 'info' | 'success' | 'error'
+
+export interface Toast {
+  id: string
+  message: string
+  type: ToastType
+}
+
 export interface MeetingState {
   // Identity
   localUid: string
@@ -41,10 +49,12 @@ export interface MeetingState {
   isAudioMuted: boolean
   isVideoOff: boolean
   isScreenSharing: boolean
+  isHandRaised: boolean
   setLocalStream: (stream: MediaStream | null) => void
   setAudioMuted: (muted: boolean) => void
   setVideoOff: (off: boolean) => void
   setScreenSharing: (sharing: boolean) => void
+  toggleHandRaise: () => void
 
   // Peers
   peers: Record<string, PeerState>
@@ -67,10 +77,10 @@ export interface MeetingState {
   addChatMessage: (message: ChatMessage) => void
   clearChatMessages: () => void
 
-  // Hand raise
-  handRaisedUids: Set<string>
-  toggleHandRaise: (uid: string) => void
-  clearHandRaise: () => void
+  // Toasts (transient user feedback)
+  toasts: Toast[]
+  addToast: (message: string, type?: ToastType) => void
+  removeToast: (id: string) => void
 
   // Encryption
   encryptionKey: CryptoKey | null
@@ -96,17 +106,22 @@ const initialState = {
   isAudioMuted: false,
   isVideoOff: false,
   isScreenSharing: false,
+  isHandRaised: false,
   peers: {},
   activeSpeakerUid: null,
   isChatOpen: false,
   isParticipantsOpen: false,
   chatMessages: [],
   unreadChatCount: 0,
-  handRaisedUids: new Set<string>(),
+  toasts: [] as Toast[],
   encryptionKey: null,
   isEncrypted: false,
   signalingError: null,
 }
+
+// Monotonic id source for toasts/messages. Date.now()+counter avoids collisions
+// when several toasts fire in the same millisecond.
+let _toastSeq = 0
 
 export const useMeetingStore = create<MeetingState>()(
   immer((set) => ({
@@ -122,6 +137,10 @@ export const useMeetingStore = create<MeetingState>()(
     setAudioMuted: (muted: boolean) => set({ isAudioMuted: muted }),
     setVideoOff: (off: boolean) => set({ isVideoOff: off }),
     setScreenSharing: (sharing: boolean) => set({ isScreenSharing: sharing }),
+    toggleHandRaise: () =>
+      set((state) => {
+        state.isHandRaised = !state.isHandRaised
+      }),
 
     addPeer: (uid: string, name: string) =>
       set((state) => {
@@ -183,16 +202,19 @@ export const useMeetingStore = create<MeetingState>()(
 
     clearChatMessages: () => set({ chatMessages: [], unreadChatCount: 0 }),
 
-    toggleHandRaise: (uid: string) =>
+    addToast: (message: string, type: ToastType = 'info') =>
       set((state) => {
-        if (state.handRaisedUids.has(uid)) {
-          state.handRaisedUids.delete(uid)
-        } else {
-          state.handRaisedUids.add(uid)
-        }
+        _toastSeq += 1
+        const id = `t-${Date.now()}-${_toastSeq}`
+        state.toasts.push({ id, message, type })
+        // Cap the stack so a flurry of events can't pile up off-screen.
+        if (state.toasts.length > 4) state.toasts.shift()
       }),
 
-    clearHandRaise: () => set({ handRaisedUids: new Set() }),
+    removeToast: (id: string) =>
+      set((state) => {
+        state.toasts = state.toasts.filter((t) => t.id !== id)
+      }),
 
     setEncryptionKey: (key: CryptoKey | null) => set({ encryptionKey: key }),
     setIsEncrypted: (encrypted: boolean) => set({ isEncrypted: encrypted }),

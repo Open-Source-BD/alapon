@@ -387,12 +387,15 @@ export function useWebRTC(roomId: string | null) {
     {
       onPeerJoined: (uid: string, name: string) => {
         addPeer(uid, name)
+        useMeetingStore.getState().addToast(`${name || 'Someone'} joined`, 'info')
         if (localUid < uid) {
           initiateCall(uid)
         }
       },
       onPeerLeft: (uid: string) => {
+        const name = useMeetingStore.getState().peers[uid]?.name
         hangupPeer(uid)
+        useMeetingStore.getState().addToast(`${name || 'Someone'} left`, 'info')
       },
       onOffer: (fromUid: string, sdp: RTCSessionDescriptionInit) => {
         handleOffer(fromUid, sdp)

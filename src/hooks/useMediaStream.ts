@@ -56,6 +56,37 @@ export function useMediaStream() {
     }
   }
 
+  // Re-acquire the camera/mic with specific devices (used by the PreJoin device
+  // picker). Stops the current tracks first, then swaps in the new stream. If a
+  // meeting is already live, useWebRTC's localStream effect replaces the sent
+  // tracks on every peer connection.
+  async function switchDevices(opts: {
+    audioDeviceId?: string
+    videoDeviceId?: string
+  }): Promise<void> {
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop())
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: opts.audioDeviceId
+          ? { deviceId: { exact: opts.audioDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+          : { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: opts.videoDeviceId
+          ? { deviceId: { exact: opts.videoDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+      })
+      streamRef.current = stream
+      startedRef.current = true
+      setLocalStream(stream)
+      stream.getAudioTracks().forEach((t) => { t.enabled = !isAudioMuted })
+      stream.getVideoTracks().forEach((t) => { t.enabled = !isVideoOff })
+    } catch (error) {
+      console.error('Failed to switch devices:', error)
+      throw error
+    }
+  }
+
   function stopMedia(): void {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop())
@@ -183,6 +214,7 @@ export function useMediaStream() {
     toggleVideo,
     startScreenShare,
     stopScreenShare,
+    switchDevices,
     getDevices,
   }
 }
