@@ -90,10 +90,21 @@ export function VideoTile({
               </div>
             ) : (
               <>
-                <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl font-bold text-white">{initials}</span>
+                <div
+                  className={cn(
+                    'rounded-full bg-gray-700 flex items-center justify-center mx-auto',
+                    compact ? 'w-12 h-12' : 'w-20 h-20 mb-4'
+                  )}
+                >
+                  <span className={cn('font-bold text-white', compact ? 'text-base' : 'text-3xl')}>
+                    {initials}
+                  </span>
                 </div>
-                <p className="text-gray-400 text-sm">{isVideoOff ? 'Camera off' : 'Waiting for video...'}</p>
+                {!compact && (
+                  <p className="text-gray-400 text-sm">
+                    {isVideoOff ? 'Camera off' : 'Waiting for video...'}
+                  </p>
+                )}
               </>
             )}
           </div>

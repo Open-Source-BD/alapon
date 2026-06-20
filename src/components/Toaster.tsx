@@ -34,12 +34,12 @@ function ToastRow({ toast }: { toast: Toast }) {
         STYLES[toast.type]
       )}
     >
-      <Icon className="w-4 h-4 flex-shrink-0" />
+      <Icon className="w-4 h-4 shrink-0" />
       <span className="flex-1">{toast.message}</span>
       <button
         onClick={() => removeToast(toast.id)}
         aria-label="Dismiss notification"
-        className="flex-shrink-0 rounded p-0.5 opacity-70 hover:opacity-100"
+        className="shrink-0 rounded p-0.5 opacity-70 hover:opacity-100"
       >
         <X className="w-3.5 h-3.5" />
       </button>
