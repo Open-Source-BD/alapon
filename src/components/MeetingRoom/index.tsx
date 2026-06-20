@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Lock, Link2, Check, Users, MonitorUp } from 'lucide-react'
+import { Lock, Link2, Check, Users, MonitorUp, Clock } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useWebRTC } from '@/hooks/useWebRTC'
 import { useMediaStream } from '@/hooks/useMediaStream'
@@ -10,6 +10,7 @@ import { ParticipantsPanel } from './SidePanel/ParticipantsPanel'
 import { ReactionsOverlay } from './ReactionsOverlay'
 import { Toaster } from '../Toaster'
 import { MAX_PARTICIPANTS } from '@/lib/constants'
+import { useMutedSpeakingWarning } from '@/hooks/useMutedSpeakingWarning'
 
 export function MeetingRoom() {
   const roomId = useMeetingStore((s) => s.roomId)
@@ -20,6 +21,7 @@ export function MeetingRoom() {
   const peers = useMeetingStore((s) => s.peers)
   const localUid = useMeetingStore((s) => s.localUid)
   const presentingUid = useMeetingStore((s) => s.presentingUid)
+  const isRecording = useMeetingStore((s) => s.isRecording)
   const signalingError = useMeetingStore((s) => s.signalingError)
   const setSignalingError = useMeetingStore((s) => s.setSignalingError)
   const addToast = useMeetingStore((s) => s.addToast)
@@ -44,11 +46,15 @@ export function MeetingRoom() {
     stopScreenShare,
   } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
+  useMutedSpeakingWarning()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [linkCopied, setLinkCopied] = useState(false)
 
   const participantCount = 1 + Object.keys(peers).length
   const nearFullToastedRef = useRef(false)
+
+  const joinedAt = useMeetingStore((s) => s.joinedAt)
+  const [nowTick, setNowTick] = useState(() => Date.now())
 
   useEffect(() => {
     if (phase !== 'inmeeting') {
@@ -57,6 +63,22 @@ export function MeetingRoom() {
 
     useMeetingStore.getState().setJoinedAt(Date.now())
   }, [phase])
+
+  // Meeting-duration timer: re-render once a second while in the meeting.
+  useEffect(() => {
+    if (phase !== 'inmeeting') return
+    const id = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [phase])
+
+  const elapsed = joinedAt ? Math.max(0, Math.floor((nowTick - joinedAt) / 1000)) : 0
+  const elapsedLabel = (() => {
+    const h = Math.floor(elapsed / 3600)
+    const m = Math.floor((elapsed % 3600) / 60)
+    const s = elapsed % 60
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+  })()
 
   // One-time heads-up when the room is one slot from full.
   useEffect(() => {
@@ -125,12 +147,22 @@ export function MeetingRoom() {
             <Users className="w-3.5 h-3.5" />
             {participantCount} / {MAX_PARTICIPANTS}
           </span>
+          <span className="hidden sm:inline-flex items-center gap-1 text-sm text-muted whitespace-nowrap tabular-nums">
+            <Clock className="w-3.5 h-3.5" />
+            {elapsedLabel}
+          </span>
           {presentingUid && (
             <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent whitespace-nowrap">
               <MonitorUp className="w-3.5 h-3.5" />
               {presentingUid === localUid
                 ? 'You are presenting'
                 : `${peers[presentingUid]?.name || 'Someone'} is presenting`}
+            </span>
+          )}
+          {isRecording && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger whitespace-nowrap">
+              <span className="h-2 w-2 rounded-full bg-danger animate-pulse" />
+              REC
             </span>
           )}
         </div>

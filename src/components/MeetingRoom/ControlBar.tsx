@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Mic,
   MicOff,
@@ -11,9 +11,13 @@ import {
   Hand,
   Smile,
   LayoutGrid,
+  PictureInPicture2,
+  Circle,
+  Sparkles,
 } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
+import { useRecording } from '@/hooks/useRecording'
 import { REACTION_EMOJIS } from '@/lib/emoji'
 import { cn } from '@/lib/utils'
 
@@ -87,6 +91,8 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
   const isScreenSharing = useMeetingStore((s) => s.isScreenSharing)
+  const videoEffect = useMeetingStore((s) => s.videoEffect)
+  const setVideoEffect = useMeetingStore((s) => s.setVideoEffect)
   const isHandRaised = useMeetingStore((s) => s.isHandRaised)
   const isChatOpen = useMeetingStore((s) => s.isChatOpen)
   const isParticipantsOpen = useMeetingStore((s) => s.isParticipantsOpen)
@@ -101,6 +107,9 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
   const addToast = useMeetingStore((s) => s.addToast)
 
   const mediaStream = useMediaStream()
+  const isRecording = useMeetingStore((s) => s.isRecording)
+  const { startRecording, stopRecording } = useRecording()
+  const canRecord = typeof MediaRecorder !== 'undefined'
   const [reactionsOpen, setReactionsOpen] = useState(false)
 
   // Gate screen share on actual browser support, not viewport width. getDisplayMedia
@@ -120,8 +129,13 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
     setLayout(layout === 'grid' ? 'auto' : 'grid')
   }
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts + push-to-talk (hold Space to unmute while muted)
+  const pttActiveRef = useRef(false)
   useEffect(() => {
+    const isTypingTarget = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null
+      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+    }
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
         e.preventDefault()
@@ -134,11 +148,48 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
       if (e.key === 'Escape') {
         onLeave()
       }
+      // Push-to-talk: hold Space to temporarily unmute (only when muted).
+      if (e.code === 'Space' && !e.repeat && !isTypingTarget(e.target)) {
+        if (useMeetingStore.getState().isAudioMuted && !pttActiveRef.current) {
+          e.preventDefault()
+          pttActiveRef.current = true
+          mediaStream.toggleAudio() // unmute for the hold
+        }
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && pttActiveRef.current) {
+        pttActiveRef.current = false
+        if (!useMeetingStore.getState().isAudioMuted) mediaStream.toggleAudio() // re-mute
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
   }, [mediaStream, onLeave])
+
+  // Browser Picture-in-Picture: pop the largest playing video into a floating window.
+  const canPiP =
+    typeof document !== 'undefined' && (document as Document).pictureInPictureEnabled
+  const handlePiP = async () => {
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture()
+        return
+      }
+      const target = [...document.querySelectorAll('video')]
+        .filter((v) => v.videoWidth > 0)
+        .sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight)[0]
+      if (target) await target.requestPictureInPicture()
+      else addToast('No active video to pop out', 'info')
+    } catch {
+      addToast('Picture-in-Picture unavailable', 'error')
+    }
+  }
 
   const handleToggleScreenShare = async () => {
     try {
@@ -178,6 +229,15 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
           accent="red"
         >
           {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+        </ControlButton>
+
+        <ControlButton
+          onClick={() => setVideoEffect(videoEffect === 'blur' ? 'none' : 'blur')}
+          label={videoEffect === 'blur' ? 'Turn off background blur' : 'Blur background'}
+          active={videoEffect === 'blur'}
+          accent="blue"
+        >
+          <Sparkles className="w-5 h-5" />
         </ControlButton>
 
         <ControlButton
@@ -230,6 +290,23 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
         >
           <LayoutGrid className="w-5 h-5" />
         </ControlButton>
+
+        {canPiP && (
+          <ControlButton onClick={handlePiP} label="Picture-in-Picture" accent="blue">
+            <PictureInPicture2 className="w-5 h-5" />
+          </ControlButton>
+        )}
+
+        {canRecord && (
+          <ControlButton
+            onClick={() => (isRecording ? stopRecording() : startRecording())}
+            label={isRecording ? 'Stop recording' : 'Record meeting (saves to your device)'}
+            active={isRecording}
+            accent="red"
+          >
+            <Circle className={cn('w-5 h-5', isRecording && 'fill-current')} />
+          </ControlButton>
+        )}
 
         {/* Shown only where the browser actually supports screen capture (any desktop
             width); hidden on iOS Safari / insecure origins to avoid a dead button. */}
