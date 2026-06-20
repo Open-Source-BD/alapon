@@ -33,6 +33,7 @@ export interface ChatMessage {
   deleted?: boolean
   deliveredTo?: string[] // uids that acked delivery (own messages)
   seenBy?: string[] // uids that have seen it (own messages)
+  file?: { name: string; type: string; size: number; url: string } // shared file/image
 }
 
 export interface Reaction {

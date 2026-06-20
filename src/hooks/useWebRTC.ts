@@ -15,11 +15,43 @@ interface PeerConnection {
   dataChannel: RTCDataChannel | null
 }
 
+// ── File transfer over the data channel ─────────────────────────────────────
+// Files are chunked and sent as base64-in-JSON (reuses the string router; ~33%
+// overhead, simplest correct path). Ordered data channel guarantees meta →
+// chunks → complete arrive in order.
+const FILE_CHUNK_SIZE = 16 * 1024 // 16 KB per chunk
+const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25 MB cap
+const DRAIN_THRESHOLD = 1 * 1024 * 1024 // pause sending when a channel buffers > 1MB
+
+interface IncomingFile {
+  name: string
+  type: string
+  size: number
+  total: number
+  chunks: string[]
+  received: number
+}
+
+function abToBase64(buf: ArrayBuffer): string {
+  let binary = ''
+  const bytes = new Uint8Array(buf)
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return arr
+}
+
 export function useWebRTC(roomId: string | null) {
   const peerConnectionsRef = useRef<Map<string, PeerConnection>>(new Map())
   const candidateQueuesRef = useRef<Map<string, RTCIceCandidateInit[]>>(
     new Map()
   )
+  const incomingFilesRef = useRef<Map<string, IncomingFile>>(new Map())
   const remoteOfferStateRef = useRef<Map<string, boolean>>(new Map())
   const signalingMethodsRef = useRef<ReturnType<typeof useSignaling> | null>(null)
 
@@ -193,6 +225,47 @@ export function useWebRTC(roomId: string | null) {
                 store.markReceipt(message.msgId, remoteUid, message.state)
               }
               break
+            case 'file-meta':
+              incomingFilesRef.current.set(message.id, {
+                name: message.name,
+                type: message.fileType || 'application/octet-stream',
+                size: message.size || 0,
+                total: message.total || 0,
+                chunks: new Array(message.total || 0),
+                received: 0,
+              })
+              break
+            case 'file-chunk': {
+              const f = incomingFilesRef.current.get(message.id)
+              if (f && typeof message.seq === 'number') {
+                f.chunks[message.seq] = message.data
+                f.received += 1
+              }
+              break
+            }
+            case 'file-complete': {
+              const f = incomingFilesRef.current.get(message.id)
+              incomingFilesRef.current.delete(message.id)
+              if (f && f.received >= f.total) {
+                const bytes = f.chunks.map(base64ToBytes)
+                const blob = new Blob(bytes as BlobPart[], { type: f.type })
+                const url = URL.createObjectURL(blob)
+                addChatMessage({
+                  id: message.id,
+                  fromUid: remoteUid,
+                  fromName: message.fromName || '',
+                  text: '',
+                  timestamp: Date.now(),
+                  file: { name: f.name, type: f.type, size: f.size, url },
+                })
+                try {
+                  channel.send(JSON.stringify({ type: 'receipt', msgId: message.id, state: store.isChatOpen ? 'seen' : 'delivered' }))
+                } catch {
+                  // best-effort
+                }
+              }
+              break
+            }
             case 'reaction':
               if (typeof message.emoji === 'string') {
                 store.addReaction(remoteUid, message.emoji, message.id)
@@ -494,6 +567,57 @@ export function useWebRTC(roomId: string | null) {
     [broadcast]
   )
 
+  const sendFile = useCallback(
+    async (file: File) => {
+      if (file.size > MAX_FILE_SIZE) {
+        useMeetingStore.getState().addToast('File too large (max 25MB)', 'error')
+        return
+      }
+      const id = nanoid()
+      const buf = await file.arrayBuffer()
+      const total = Math.max(1, Math.ceil(buf.byteLength / FILE_CHUNK_SIZE))
+
+      // Show it in our own chat immediately (local object URL).
+      addChatMessage({
+        id,
+        fromUid: localUid,
+        fromName: localName,
+        text: '',
+        timestamp: Date.now(),
+        file: { name: file.name, type: file.type, size: file.size, url: URL.createObjectURL(file) },
+      })
+
+      broadcast({
+        type: 'file-meta',
+        id,
+        name: file.name,
+        fileType: file.type,
+        size: file.size,
+        total,
+        fromName: localName,
+      })
+
+      for (let seq = 0; seq < total; seq++) {
+        const slice = buf.slice(seq * FILE_CHUNK_SIZE, (seq + 1) * FILE_CHUNK_SIZE)
+        broadcast({ type: 'file-chunk', id, seq, total, data: abToBase64(slice) })
+        // Backpressure: pause while any channel's send buffer is backed up, so a
+        // big file doesn't blow the buffer or stall the media.
+        let guard = 0
+        while (guard++ < 2000) {
+          let maxBuf = 0
+          peerConnectionsRef.current.forEach((c) => {
+            if (c.dataChannel) maxBuf = Math.max(maxBuf, c.dataChannel.bufferedAmount)
+          })
+          if (maxBuf < DRAIN_THRESHOLD) break
+          await new Promise((r) => setTimeout(r, 50))
+        }
+      }
+
+      broadcast({ type: 'file-complete', id, fromName: localName })
+    },
+    [broadcast, localUid, localName, addChatMessage]
+  )
+
   signalingMethodsRef.current = useSignaling(
     roomId,
     {
@@ -541,5 +665,6 @@ export function useWebRTC(roomId: string | null) {
     sendMessageReaction,
     sendMessageDelete,
     sendReceipt,
+    sendFile,
   }
 }

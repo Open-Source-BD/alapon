@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, X, Smile, CornerUpLeft, Copy, Trash2, SmilePlus, Check, CheckCheck } from 'lucide-react'
+import { Send, X, Smile, CornerUpLeft, Copy, Trash2, SmilePlus, Check, CheckCheck, Paperclip, FileText, Download } from 'lucide-react'
 import { useMeetingStore, type ChatMessage, type ReplyRef } from '@/store/meetingStore'
 import { EmojiPicker } from '../EmojiPicker'
 import { REACTION_EMOJIS } from '@/lib/emoji'
@@ -13,6 +13,13 @@ interface ChatPanelProps {
   sendMessageReaction: (msgId: string, emoji: string) => void
   sendMessageDelete: (msgId: string) => void
   sendReceipt: (msgId: string, state: 'delivered' | 'seen') => void
+  sendFile: (file: File) => void
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
 // ✓ sent · ✓✓ delivered to everyone · ✓✓(accent) seen by everyone.
@@ -87,6 +94,29 @@ function MessageBubble({ msg, isOwn, localUid, peerCount, onReply, onReact, onDe
 
       {msg.deleted ? (
         <p className="text-sm italic text-muted">🚫 This message was deleted</p>
+      ) : msg.file ? (
+        msg.file.type.startsWith('image/') ? (
+          <a href={msg.file.url} target="_blank" rel="noopener noreferrer">
+            <img
+              src={msg.file.url}
+              alt={msg.file.name}
+              className="max-h-48 max-w-full rounded-lg border border-border object-cover"
+            />
+          </a>
+        ) : (
+          <a
+            href={msg.file.url}
+            download={msg.file.name}
+            className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-sm hover:bg-border"
+          >
+            <FileText className="h-5 w-5 shrink-0 text-accent" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-text">{msg.file.name}</span>
+              <span className="text-xs text-muted">{formatBytes(msg.file.size)}</span>
+            </span>
+            <Download className="h-4 w-4 shrink-0 text-muted" />
+          </a>
+        )
       ) : (
         <p className="text-sm text-text break-words whitespace-pre-wrap">{linkify(msg.text)}</p>
       )}
@@ -179,12 +209,14 @@ export function ChatPanel({
   sendMessageReaction,
   sendMessageDelete,
   sendReceipt,
+  sendFile,
 }: ChatPanelProps) {
   const [messageText, setMessageText] = useState('')
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [replyingTo, setReplyingTo] = useState<ReplyRef | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const isTypingRef = useRef(false)
   const seenSentRef = useRef<Set<string>>(new Set())
@@ -362,6 +394,23 @@ export function ChatPanel({
               </>
             )}
           </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Attach a file"
+            className="p-2 rounded-lg bg-elevated hover:bg-border text-muted hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) sendFile(file)
+              e.target.value = ''
+            }}
+          />
           <input
             ref={inputRef}
             type="text"
