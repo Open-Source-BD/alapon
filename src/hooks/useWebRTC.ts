@@ -9,6 +9,7 @@ import { useSignaling } from './useSignaling'
 import type { SignalingCallbacks } from './useSignaling'
 import { useActiveSpeaker } from './useActiveSpeaker'
 import { useConnectionQuality } from './useConnectionQuality'
+import { BlurProcessor } from '@/lib/blurProcessor'
 
 interface PeerConnection {
   pc: RTCPeerConnection
@@ -54,6 +55,9 @@ export function useWebRTC(roomId: string | null) {
   const incomingFilesRef = useRef<Map<string, IncomingFile>>(new Map())
   const screenStreamRef = useRef<MediaStream | null>(null)
   const cameraVideoTrackRef = useRef<MediaStreamTrack | null>(null)
+  const blurProcRef = useRef<BlurProcessor | null>(null)
+  const blurCameraRef = useRef<MediaStreamTrack | null>(null)
+  const videoEffect = useMeetingStore((s) => s.videoEffect)
   const remoteOfferStateRef = useRef<Map<string, boolean>>(new Map())
   const signalingMethodsRef = useRef<ReturnType<typeof useSignaling> | null>(null)
 
@@ -185,6 +189,66 @@ export function useWebRTC(roomId: string | null) {
       })
     })
   }, [localStream])
+
+  // Background blur: when toggled on, run the camera through the on-device blur
+  // processor and swap the processed track onto every sender + the self-view (same
+  // replaceTrack pattern as screen share). Off → restore the raw camera. Any failure
+  // reverts to raw camera so video is never black.
+  useEffect(() => {
+    let cancelled = false
+    const swapOnSenders = (track: MediaStreamTrack) => {
+      peerConnectionsRef.current.forEach(({ pc }) => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+        if (sender) sender.replaceTrack(track).catch(() => {})
+      })
+    }
+
+    const apply = async () => {
+      const stream = useMeetingStore.getState().localStream
+      if (!stream) return
+      // Screen share owns the video track while active; blur applies to camera only.
+      if (useMeetingStore.getState().isScreenSharing) return
+
+      if (videoEffect === 'blur' && !blurProcRef.current) {
+        const cam = stream.getVideoTracks()[0]
+        if (!cam) return
+        try {
+          const proc = new BlurProcessor()
+          const out = await proc.start(cam)
+          if (cancelled) {
+            proc.stop()
+            return
+          }
+          blurProcRef.current = proc
+          blurCameraRef.current = cam
+          swapOnSenders(out)
+          stream.removeTrack(cam) // keep cam LIVE (the processor reads it); just drop from self-view
+          stream.addTrack(out)
+        } catch {
+          useMeetingStore.getState().setVideoEffect('none')
+          useMeetingStore.getState().addToast('Background blur could not start', 'error')
+        }
+      } else if (videoEffect === 'none' && blurProcRef.current) {
+        const cam = blurCameraRef.current
+        if (cam) {
+          swapOnSenders(cam)
+          const processed = stream.getVideoTracks()[0]
+          if (processed && processed !== cam) {
+            stream.removeTrack(processed)
+            processed.stop()
+          }
+          if (!stream.getVideoTracks().includes(cam)) stream.addTrack(cam)
+        }
+        blurProcRef.current.stop()
+        blurProcRef.current = null
+        blurCameraRef.current = null
+      }
+    }
+    apply()
+    return () => {
+      cancelled = true
+    }
+  }, [videoEffect])
 
   const setupDataChannel = useCallback(
     (remoteUid: string, channel: RTCDataChannel) => {

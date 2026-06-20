@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   PictureInPicture2,
   Circle,
+  Sparkles,
 } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
@@ -90,6 +91,8 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
   const isScreenSharing = useMeetingStore((s) => s.isScreenSharing)
+  const videoEffect = useMeetingStore((s) => s.videoEffect)
+  const setVideoEffect = useMeetingStore((s) => s.setVideoEffect)
   const isHandRaised = useMeetingStore((s) => s.isHandRaised)
   const isChatOpen = useMeetingStore((s) => s.isChatOpen)
   const isParticipantsOpen = useMeetingStore((s) => s.isParticipantsOpen)
@@ -226,6 +229,15 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
           accent="red"
         >
           {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+        </ControlButton>
+
+        <ControlButton
+          onClick={() => setVideoEffect(videoEffect === 'blur' ? 'none' : 'blur')}
+          label={videoEffect === 'blur' ? 'Turn off background blur' : 'Blur background'}
+          active={videoEffect === 'blur'}
+          accent="blue"
+        >
+          <Sparkles className="w-5 h-5" />
         </ControlButton>
 
         <ControlButton
