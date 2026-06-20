@@ -55,6 +55,7 @@ export function VideoGrid() {
             isAudioMuted={peer.isAudioMuted}
             isVideoOff={peer.isVideoOff}
             isActiveSpeaker={activeSpeakerUid === peer.uid}
+            connectionState={peer.connectionState}
           />
         ))}
       </div>

@@ -13,6 +13,8 @@ export function MeetingRoom() {
   const isChatOpen = useMeetingStore((s) => s.isChatOpen)
   const isParticipantsOpen = useMeetingStore((s) => s.isParticipantsOpen)
   const phase = useMeetingStore((s) => s.phase)
+  const signalingError = useMeetingStore((s) => s.signalingError)
+  const setSignalingError = useMeetingStore((s) => s.setSignalingError)
 
   const setPhase = useMeetingStore((s) => s.setPhase)
   const reset = useMeetingStore((s) => s.reset)
@@ -55,6 +57,17 @@ export function MeetingRoom() {
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
       <div className="flex-1 flex flex-col">
+        {signalingError && (
+          <div className="flex items-center justify-between gap-4 bg-red-900/40 border-b border-red-700 px-4 py-2 text-sm text-red-200">
+            <span>{signalingError}</span>
+            <button
+              onClick={() => setSignalingError(null)}
+              className="text-red-300 hover:text-white text-xs underline whitespace-nowrap"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         <VideoGrid />
         <ControlBar onLeave={handleLeave} />
       </div>

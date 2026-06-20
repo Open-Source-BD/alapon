@@ -77,6 +77,10 @@ export interface MeetingState {
   setEncryptionKey: (key: CryptoKey | null) => void
   setIsEncrypted: (encrypted: boolean) => void
 
+  // Errors (surfaced to the user)
+  signalingError: string | null
+  setSignalingError: (error: string | null) => void
+
   // Reset
   reset: () => void
 }
@@ -99,6 +103,7 @@ const initialState = {
   handRaisedUids: new Set<string>(),
   encryptionKey: null,
   isEncrypted: false,
+  signalingError: null,
 }
 
 export const useMeetingStore = create<MeetingState>()(
@@ -174,6 +179,8 @@ export const useMeetingStore = create<MeetingState>()(
 
     setEncryptionKey: (key: CryptoKey | null) => set({ encryptionKey: key }),
     setIsEncrypted: (encrypted: boolean) => set({ isEncrypted: encrypted }),
+
+    setSignalingError: (error: string | null) => set({ signalingError: error }),
 
     reset: () => set(initialState),
   }))

@@ -3,12 +3,17 @@ export function getIceServers(): RTCIceServer[] {
   const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL
 
   return [
-    // STUN servers (free, public)
+    // STUN servers
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:stun.nextcloud.com:443' },
+    { urls: 'stun:iphone-stun.strato-iphone.de:3478' },
 
-    // TURN servers (for NAT traversal, requires credentials)
+    // TURN servers
     ...(turnUsername && turnCredential ? [{
       urls: [
         'turn:relay.metered.ca:80',

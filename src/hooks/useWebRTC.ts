@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { nanoid } from 'nanoid'
 import { getIceServers } from '@/lib/iceServers'
-import { applyEncoderTransform, applyDecoderTransform, supportsInsertableStreams } from '@/lib/crypto'
+// NOTE: Frame-level AES-GCM E2E encryption lives in @/lib/crypto
+// (applyEncoderTransform / applyDecoderTransform) but is not wired up yet — it
+// previously broke video. See README "Known limitations". Re-enable here.
 import { useMeetingStore } from '@/store/meetingStore'
 import { useSignaling } from './useSignaling'
 import type { SignalingCallbacks } from './useSignaling'
@@ -32,41 +34,56 @@ export function useWebRTC(roomId: string | null) {
 
   const createPeerConnection = useCallback(
     (remoteUid: string): RTCPeerConnection => {
+      console.log('Creating PeerConnection for:', remoteUid)
       const pc = new RTCPeerConnection({
         iceServers: getIceServers(),
-        encodedInsertableStreams: !!encryptionKey && supportsInsertableStreams,
+        // Temporarily disable to fix "Waiting for video" issue
+        // encodedInsertableStreams: !!encryptionKey && supportsInsertableStreams,
       } as any)
 
       // Add local tracks
       if (localStream) {
+        console.log('Adding local tracks to PC for:', remoteUid)
         localStream.getTracks().forEach((track) => {
-          const sender = pc.addTrack(track, localStream)
-
-          // Apply encoder transform if encryption is enabled
-          if (encryptionKey && supportsInsertableStreams) {
-            applyEncoderTransform(sender, encryptionKey)
-          }
+          pc.addTrack(track, localStream)
         })
       }
 
       // Handle incoming tracks
       pc.ontrack = (event) => {
-        let [stream] = event.streams
-        if (!stream) {
-          stream = new MediaStream([event.track])
-        }
-
-        // Apply decoder transform if encryption is enabled
-        if (encryptionKey && supportsInsertableStreams) {
-          applyDecoderTransform(event.receiver, encryptionKey)
-        }
-
-        setPeerStream(remoteUid, stream)
+        console.log('Received remote track from:', remoteUid, event.track.kind)
         
-        // Ensure connection state is updated
-        updatePeer(remoteUid, {
-          connectionState: pc.connectionState,
-        })
+        // Merge tracks into a single stream for this peer
+        const existingPeer = useMeetingStore.getState().peers[remoteUid]
+        let stream = existingPeer?.stream || new MediaStream()
+        
+        if (!stream.getTracks().find(t => t.id === event.track.id)) {
+          stream.addTrack(event.track)
+        }
+        
+        setPeerStream(remoteUid, stream)
+      }
+
+      pc.onnegotiationneeded = async () => {
+        try {
+          // Skip the *initial* negotiation: initiateCall() already sends the
+          // first offer. Acting here too would create a second, competing offer
+          // (glare) now that the signaling slot is overwritable. Only react to
+          // genuine renegotiation (tracks changed after connect), and only the
+          // offerer (lower UID) drives it.
+          const isOfferer = localUid < remoteUid
+          if (!isOfferer || !pc.remoteDescription) return
+          if (pc.signalingState !== 'stable') return
+
+          console.log('Renegotiation needed for:', remoteUid)
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          if (signalingMethodsRef.current && offer.sdp) {
+            await signalingMethodsRef.current.sendOffer(remoteUid, offer.sdp)
+          }
+        } catch (error) {
+          console.error('Negotiation failed:', error)
+        }
       }
 
       // ICE candidates
@@ -83,6 +100,9 @@ export function useWebRTC(roomId: string | null) {
 
       // Connection state changes
       pc.onconnectionstatechange = () => {
+        console.log(`Connection State (${remoteUid}):`, pc.connectionState)
+        console.log(`ICE Connection State (${remoteUid}):`, pc.iceConnectionState)
+        
         updatePeer(remoteUid, {
           connectionState: pc.connectionState,
         })
@@ -101,6 +121,25 @@ export function useWebRTC(roomId: string | null) {
     },
     [localStream, encryptionKey, setPeerStream, updatePeer]
   )
+
+  // Update existing connections when local stream changes
+  useEffect(() => {
+    if (!localStream) return
+    
+    peerConnectionsRef.current.forEach(({ pc }) => {
+      const senders = pc.getSenders()
+      localStream.getTracks().forEach((track) => {
+        const sender = senders.find((s) => s.track?.kind === track.kind)
+        if (sender) {
+          if (sender.track !== track) {
+            sender.replaceTrack(track)
+          }
+        } else {
+          pc.addTrack(track, localStream)
+        }
+      })
+    })
+  }, [localStream])
 
   const setupDataChannel = useCallback(
     (remoteUid: string, channel: RTCDataChannel) => {
@@ -268,6 +307,10 @@ export function useWebRTC(roomId: string | null) {
   const attemptIceRestart = useCallback(
     async (remoteUid: string) => {
       try {
+        // Only the offerer (lower UID) drives ICE restart. If both peers wrote
+        // restart offers to the same signaling slot they'd clobber each other.
+        if (localUid >= remoteUid) return
+
         const connections = peerConnectionsRef.current.get(remoteUid)
         if (!connections || connections.pc.connectionState === 'closed') return
 
@@ -282,7 +325,7 @@ export function useWebRTC(roomId: string | null) {
         console.error('Failed ICE restart:', error)
       }
     },
-    []
+    [localUid]
   )
 
   const hangupPeer = useCallback(
