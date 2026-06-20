@@ -3,6 +3,8 @@ import { immer } from 'zustand/middleware/immer'
 
 export type Phase = 'idle' | 'prejoin' | 'joining' | 'inmeeting' | 'left'
 
+export type ConnectionQuality = 'good' | 'fair' | 'poor'
+
 export interface PeerState {
   uid: string
   name: string
@@ -11,6 +13,7 @@ export interface PeerState {
   isVideoOff: boolean
   isHandRaised: boolean
   connectionState: RTCPeerConnectionState | null
+  quality: ConnectionQuality
 }
 
 export interface ChatMessage {
@@ -180,6 +183,7 @@ export const useMeetingStore = create<MeetingState>()(
             isVideoOff: false,
             isHandRaised: false,
             connectionState: null,
+            quality: 'good',
           }
         }
       }),

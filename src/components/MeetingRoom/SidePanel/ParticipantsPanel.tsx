@@ -1,5 +1,6 @@
 import { Mic, MicOff, Video, VideoOff, X, Hand } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
+import { SignalBars } from '../SignalBars'
 
 export function ParticipantsPanel() {
   const localName = useMeetingStore((s) => s.localName)
@@ -95,7 +96,12 @@ export function ParticipantsPanel() {
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2 flex-shrink-0 ml-2">
+              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                {peer.quality !== 'good' && (
+                  <div className="flex h-6 items-center px-1">
+                    <SignalBars quality={peer.quality} />
+                  </div>
+                )}
                 {peer.isHandRaised && (
                   <div className="p-1.5 rounded bg-warn/20">
                     <Hand className="w-3 h-3 text-warn" />

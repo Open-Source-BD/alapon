@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { MicOff, Loader2, Hand, Pin, PinOff } from 'lucide-react'
-import { useMeetingStore } from '@/store/meetingStore'
+import { useMeetingStore, type ConnectionQuality } from '@/store/meetingStore'
+import { SignalBars } from './SignalBars'
 import { cn } from '@/lib/utils'
 
 interface VideoTileProps {
@@ -17,6 +18,8 @@ interface VideoTileProps {
   /** uid this tile represents — enables the pin control. */
   uid?: string
   pinnable?: boolean
+  /** Remote connection quality (omit for the local tile). */
+  quality?: ConnectionQuality
 }
 
 export function VideoTile({
@@ -31,6 +34,7 @@ export function VideoTile({
   compact,
   uid,
   pinnable,
+  quality,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const pinnedUid = useMeetingStore((s) => s.pinnedUid)
@@ -150,11 +154,12 @@ export function VideoTile({
               {isLocal ? `${name} (You)` : name}
             </p>
           </div>
-          {isAudioMuted && (
-            <div className="ml-2 flex-shrink-0">
+          <div className="ml-2 flex flex-shrink-0 items-center gap-2">
+            {!isLocal && quality && quality !== 'good' && <SignalBars quality={quality} />}
+            {isAudioMuted && (
               <MicOff className={cn('text-danger', compact ? 'w-3 h-3' : 'w-4 h-4')} />
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

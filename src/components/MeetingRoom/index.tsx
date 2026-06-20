@@ -9,6 +9,7 @@ import { ChatPanel } from './SidePanel/ChatPanel'
 import { ParticipantsPanel } from './SidePanel/ParticipantsPanel'
 import { ReactionsOverlay } from './ReactionsOverlay'
 import { Toaster } from '../Toaster'
+import { MAX_PARTICIPANTS } from '@/lib/constants'
 
 export function MeetingRoom() {
   const roomId = useMeetingStore((s) => s.roomId)
@@ -35,6 +36,7 @@ export function MeetingRoom() {
   const [linkCopied, setLinkCopied] = useState(false)
 
   const participantCount = 1 + Object.keys(peers).length
+  const nearFullToastedRef = useRef(false)
 
   useEffect(() => {
     if (phase !== 'inmeeting') {
@@ -43,6 +45,14 @@ export function MeetingRoom() {
 
     useMeetingStore.getState().setJoinedAt(Date.now())
   }, [phase])
+
+  // One-time heads-up when the room is one slot from full.
+  useEffect(() => {
+    if (participantCount >= MAX_PARTICIPANTS - 1 && !nearFullToastedRef.current) {
+      nearFullToastedRef.current = true
+      addToast(`Room is almost full (${participantCount}/${MAX_PARTICIPANTS})`, 'info')
+    }
+  }, [participantCount, addToast])
 
   const handleCopyInvite = async () => {
     try {
@@ -101,7 +111,7 @@ export function MeetingRoom() {
           <span className="text-muted">|</span>
           <span className="inline-flex items-center gap-1 text-sm text-muted whitespace-nowrap">
             <Users className="w-3.5 h-3.5" />
-            {participantCount}
+            {participantCount} / {MAX_PARTICIPANTS}
           </span>
         </div>
         <button

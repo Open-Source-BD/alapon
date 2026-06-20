@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Video, VideoOff, Mic, MicOff, RefreshCw } from 'lucide-react'
 import { nanoid } from 'nanoid'
+import { get, child } from 'firebase/database'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
 import { deriveRoomKey } from '@/lib/crypto'
+import { roomRef } from '@/lib/firebase'
+import { MAX_PARTICIPANTS } from '@/lib/constants'
 
 interface PreJoinScreenProps {
   roomId?: string
@@ -125,6 +128,20 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
       if (!roomIdToUse) {
         setError('Invalid room code')
         return
+      }
+
+      // Soft capacity cap: don't let people walk into a full mesh room (it would
+      // degrade the call for everyone). Best-effort — a race for the last slot can
+      // let two through; that's acceptable for a graceful cap. Creating is always ok.
+      if (!isCreating) {
+        const snap = await get(child(roomRef(roomIdToUse), 'participants'))
+        const count = snap.exists() ? Object.keys(snap.val()).length : 0
+        if (count >= MAX_PARTICIPANTS) {
+          setError(
+            `This room is full (max ${MAX_PARTICIPANTS} for call quality). Ask the host to start a new one.`
+          )
+          return
+        }
       }
 
       const hashKey = new URLSearchParams(window.location.hash.slice(1)).get('key') ?? ''

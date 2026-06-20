@@ -1,4 +1,4 @@
-import { useMeetingStore } from '@/store/meetingStore'
+import { useMeetingStore, type ConnectionQuality } from '@/store/meetingStore'
 import { VideoTile } from './VideoTile'
 
 interface TileData {
@@ -10,6 +10,7 @@ interface TileData {
   isVideoOff: boolean
   isHandRaised: boolean
   connectionState: RTCPeerConnectionState | null
+  quality?: ConnectionQuality
 }
 
 // Layout:
@@ -49,6 +50,7 @@ export function VideoGrid() {
     isVideoOff: p.isVideoOff,
     isHandRaised: p.isHandRaised,
     connectionState: p.connectionState,
+    quality: p.quality,
   }))
   const allTiles = [localData, ...peerData]
 
@@ -64,6 +66,7 @@ export function VideoGrid() {
       isHandRaised={t.isHandRaised}
       isActiveSpeaker={activeSpeakerUid === t.uid}
       connectionState={t.connectionState}
+      quality={t.quality}
       compact={opts.compact}
       pinnable={opts.pinnable}
     />
