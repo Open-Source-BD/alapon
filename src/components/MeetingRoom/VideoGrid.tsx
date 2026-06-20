@@ -1,10 +1,23 @@
 import { useMeetingStore } from '@/store/meetingStore'
 import { VideoTile } from './VideoTile'
 
-// Layout, Google Meet style:
-//   0 remote  → your own video fills the stage
-//   1 remote  → the other person fills the stage, you pin as a small PiP
-//   2+ remote → gallery grid of everyone (auto-fit, wraps on mobile)
+interface TileData {
+  uid: string
+  name: string
+  stream: MediaStream | null
+  isLocal: boolean
+  isAudioMuted: boolean
+  isVideoOff: boolean
+  isHandRaised: boolean
+  connectionState: RTCPeerConnectionState | null
+}
+
+// Layout:
+//   layout 'grid'           → gallery of everyone
+//   pinnedUid set           → pinned fills the stage, others in a filmstrip
+//   else (auto): 0 remote   → you fill the stage
+//                1 remote   → other fills the stage, you pin as a PiP
+//                2+ remote  → gallery grid
 export function VideoGrid() {
   const localUid = useMeetingStore((s) => s.localUid)
   const localName = useMeetingStore((s) => s.localName)
@@ -14,81 +27,106 @@ export function VideoGrid() {
   const isHandRaised = useMeetingStore((s) => s.isHandRaised)
   const peers = useMeetingStore((s) => s.peers)
   const activeSpeakerUid = useMeetingStore((s) => s.activeSpeakerUid)
+  const pinnedUid = useMeetingStore((s) => s.pinnedUid)
+  const layout = useMeetingStore((s) => s.layout)
 
-  const peerList = Object.values(peers)
+  const localData: TileData = {
+    uid: localUid,
+    name: localName || 'You',
+    stream: localStream,
+    isLocal: true,
+    isAudioMuted,
+    isVideoOff,
+    isHandRaised,
+    connectionState: null,
+  }
+  const peerData: TileData[] = Object.values(peers).map((p) => ({
+    uid: p.uid,
+    name: p.name,
+    stream: p.stream,
+    isLocal: false,
+    isAudioMuted: p.isAudioMuted,
+    isVideoOff: p.isVideoOff,
+    isHandRaised: p.isHandRaised,
+    connectionState: p.connectionState,
+  }))
+  const allTiles = [localData, ...peerData]
 
-  const localTile = (compact: boolean) => (
+  const tile = (t: TileData, opts: { compact?: boolean; pinnable?: boolean } = {}) => (
     <VideoTile
-      name={localName || 'You'}
-      stream={localStream}
-      isLocal
-      isAudioMuted={isAudioMuted}
-      isVideoOff={isVideoOff}
-      isHandRaised={isHandRaised}
-      isActiveSpeaker={activeSpeakerUid === localUid}
-      compact={compact}
+      key={t.uid}
+      uid={t.uid}
+      name={t.name}
+      stream={t.stream}
+      isLocal={t.isLocal}
+      isAudioMuted={t.isAudioMuted}
+      isVideoOff={t.isVideoOff}
+      isHandRaised={t.isHandRaised}
+      isActiveSpeaker={activeSpeakerUid === t.uid}
+      connectionState={t.connectionState}
+      compact={opts.compact}
+      pinnable={opts.pinnable}
     />
   )
 
-  // 1:1 — remote fills the screen, self pins as picture-in-picture.
-  if (peerList.length === 1) {
-    const peer = peerList[0]
-    return (
-      <div className="relative flex-1 bg-surface p-2 sm:p-4 min-h-0">
-        <div className="h-full w-full">
-          <VideoTile
-            name={peer.name}
-            stream={peer.stream}
-            isLocal={false}
-            isAudioMuted={peer.isAudioMuted}
-            isVideoOff={peer.isVideoOff}
-            isHandRaised={peer.isHandRaised}
-            isActiveSpeaker={activeSpeakerUid === peer.uid}
-            connectionState={peer.connectionState}
-          />
-        </div>
-        <div className="absolute bottom-4 right-4 z-10 h-40 w-28 overflow-hidden rounded-lg shadow-xl ring-1 ring-white/15 sm:h-32 sm:w-44">
-          {localTile(true)}
-        </div>
-      </div>
-    )
-  }
-
-  // Alone — your own video fills the stage.
-  if (peerList.length === 0) {
-    return (
-      <div className="flex-1 bg-surface p-2 sm:p-4 min-h-0">
-        <div className="h-full w-full">{localTile(false)}</div>
-      </div>
-    )
-  }
-
-  // Group — gallery grid including self.
-  return (
-    <div className="flex-1 bg-surface p-2 sm:p-4 overflow-auto min-h-0">
-      <div
-        className="h-full grid gap-2"
-        style={{
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
-          gridAutoRows: 'minmax(0, 1fr)',
-          minHeight: '100%',
-        }}
-      >
-        {localTile(false)}
-        {peerList.map((peer) => (
-          <VideoTile
-            key={peer.uid}
-            name={peer.name}
-            stream={peer.stream}
-            isLocal={false}
-            isAudioMuted={peer.isAudioMuted}
-            isVideoOff={peer.isVideoOff}
-            isHandRaised={peer.isHandRaised}
-            isActiveSpeaker={activeSpeakerUid === peer.uid}
-            connectionState={peer.connectionState}
-          />
-        ))}
-      </div>
+  const wrap = (children: React.ReactNode, scroll = false) => (
+    <div className={`flex-1 bg-surface p-2 sm:p-4 min-h-0 ${scroll ? 'overflow-auto' : ''}`}>
+      {children}
     </div>
+  )
+
+  // Pinned spotlight: pinned tile fills the stage, the rest sit in a filmstrip.
+  const pinned = pinnedUid ? allTiles.find((t) => t.uid === pinnedUid) : undefined
+  if (pinned && layout !== 'grid') {
+    const others = allTiles.filter((t) => t.uid !== pinned.uid)
+    return wrap(
+      <div className="relative h-full w-full">
+        <div className="h-full w-full">{tile(pinned, { pinnable: true })}</div>
+        {others.length > 0 && (
+          <div className="absolute bottom-3 right-3 z-10 flex max-w-[70%] gap-2 overflow-x-auto">
+            {others.map((t) => (
+              <div
+                key={t.uid}
+                className="h-24 w-32 flex-shrink-0 overflow-hidden rounded-lg shadow-xl ring-1 ring-white/15"
+              >
+                {tile(t, { compact: true, pinnable: true })}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Auto 1:1 — remote fills the screen, self pins as picture-in-picture.
+  if (layout !== 'grid' && peerData.length === 1) {
+    return wrap(
+      <div className="relative h-full w-full">
+        <div className="h-full w-full">{tile(peerData[0], { pinnable: true })}</div>
+        <div className="absolute bottom-4 right-4 z-10 h-40 w-28 overflow-hidden rounded-lg shadow-xl ring-1 ring-white/15 sm:h-32 sm:w-44">
+          {tile(localData, { compact: true })}
+        </div>
+      </div>
+    )
+  }
+
+  // Auto alone — your own video fills the stage.
+  if (layout !== 'grid' && peerData.length === 0) {
+    return wrap(<div className="h-full w-full">{tile(localData)}</div>)
+  }
+
+  // Gallery grid (forced 'grid' layout, or 2+ peers in auto).
+  return wrap(
+    <div
+      className="h-full grid gap-2"
+      style={{
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+        gridAutoRows: 'minmax(0, 1fr)',
+        minHeight: '100%',
+      }}
+    >
+      {allTiles.map((t) => tile(t, { pinnable: true }))}
+    </div>,
+    true
   )
 }

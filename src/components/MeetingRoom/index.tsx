@@ -7,6 +7,7 @@ import { VideoGrid } from './VideoGrid'
 import { ControlBar } from './ControlBar'
 import { ChatPanel } from './SidePanel/ChatPanel'
 import { ParticipantsPanel } from './SidePanel/ParticipantsPanel'
+import { ReactionsOverlay } from './ReactionsOverlay'
 import { Toaster } from '../Toaster'
 
 export function MeetingRoom() {
@@ -28,7 +29,7 @@ export function MeetingRoom() {
   // data channel. It also drives active-speaker detection internally. Anything
   // that needs to send chat (ChatPanel) gets it from here via props — calling
   // useWebRTC again would spin up a second, competing WebRTC stack.
-  const { sendChatMessage } = useWebRTC(roomId)
+  const { sendChatMessage, sendReaction, sendTyping } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [linkCopied, setLinkCopied] = useState(false)
@@ -130,8 +131,11 @@ export function MeetingRoom() {
               </button>
             </div>
           )}
-          <VideoGrid />
-          <ControlBar onLeave={handleLeave} />
+          <div className="relative flex flex-1 min-h-0">
+            <VideoGrid />
+            <ReactionsOverlay />
+          </div>
+          <ControlBar onLeave={handleLeave} onReaction={sendReaction} />
         </div>
 
         {isPanelOpen && (
@@ -140,7 +144,7 @@ export function MeetingRoom() {
                        sm:static sm:h-auto sm:w-80 sm:rounded-none sm:border-t-0 sm:border-l sm:shadow-none"
           >
             {isChatOpen ? (
-              <ChatPanel sendChatMessage={sendChatMessage} />
+              <ChatPanel sendChatMessage={sendChatMessage} sendTyping={sendTyping} />
             ) : (
               <ParticipantsPanel />
             )}

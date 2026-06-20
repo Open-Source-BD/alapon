@@ -156,14 +156,29 @@ export function useWebRTC(roomId: string | null) {
       channel.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data)
-          if (message.type === 'chat') {
-            addChatMessage({
-              id: message.id,
-              fromUid: remoteUid,
-              fromName: message.fromName,
-              text: message.text,
-              timestamp: message.timestamp,
-            })
+          const store = useMeetingStore.getState()
+          switch (message.type) {
+            case 'chat':
+              addChatMessage({
+                id: message.id,
+                fromUid: remoteUid,
+                fromName: message.fromName,
+                text: message.text,
+                timestamp: message.timestamp,
+              })
+              store.setPeerTyping(remoteUid, false)
+              break
+            case 'reaction':
+              if (typeof message.emoji === 'string') {
+                store.addReaction(remoteUid, message.emoji, message.id)
+              }
+              break
+            case 'typing':
+              store.setPeerTyping(remoteUid, !!message.typing)
+              break
+            default:
+              // Unknown message type from a newer/older peer — ignore.
+              break
           }
         } catch (error) {
           console.error('Failed to parse data channel message:', error)
@@ -382,6 +397,37 @@ export function useWebRTC(roomId: string | null) {
     [localName, localUid, addChatMessage]
   )
 
+  // Broadcast a JSON payload to every open data channel (no local side effect).
+  const broadcast = useCallback((payload: Record<string, unknown>) => {
+    const data = JSON.stringify(payload)
+    peerConnectionsRef.current.forEach((connection) => {
+      if (connection.dataChannel?.readyState === 'open') {
+        try {
+          connection.dataChannel.send(data)
+        } catch (error) {
+          console.error('Failed to broadcast data channel message:', error)
+        }
+      }
+    })
+  }, [])
+
+  const sendReaction = useCallback(
+    (emoji: string) => {
+      const id = nanoid()
+      broadcast({ type: 'reaction', emoji, id })
+      // Show our own reaction locally too.
+      useMeetingStore.getState().addReaction(localUid, emoji, id)
+    },
+    [broadcast, localUid]
+  )
+
+  const sendTyping = useCallback(
+    (typing: boolean) => {
+      broadcast({ type: 'typing', typing })
+    },
+    [broadcast]
+  )
+
   signalingMethodsRef.current = useSignaling(
     roomId,
     {
@@ -424,5 +470,7 @@ export function useWebRTC(roomId: string | null) {
     initiateCall,
     hangupPeer,
     sendChatMessage,
+    sendReaction,
+    sendTyping,
   }
 }

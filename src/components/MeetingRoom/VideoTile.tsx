@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { MicOff, Loader2, Hand } from 'lucide-react'
+import { MicOff, Loader2, Hand, Pin, PinOff } from 'lucide-react'
+import { useMeetingStore } from '@/store/meetingStore'
 import { cn } from '@/lib/utils'
 
 interface VideoTileProps {
@@ -13,6 +14,9 @@ interface VideoTileProps {
   connectionState?: RTCPeerConnectionState | null
   /** Picture-in-picture mode: smaller chrome for the pinned self-view. */
   compact?: boolean
+  /** uid this tile represents — enables the pin control. */
+  uid?: string
+  pinnable?: boolean
 }
 
 export function VideoTile({
@@ -25,8 +29,14 @@ export function VideoTile({
   isHandRaised,
   connectionState,
   compact,
+  uid,
+  pinnable,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const pinnedUid = useMeetingStore((s) => s.pinnedUid)
+  const setPinned = useMeetingStore((s) => s.setPinned)
+  const isPinned = !!uid && pinnedUid === uid
+  const showPin = pinnable && !compact && !!uid
 
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -52,7 +62,7 @@ export function VideoTile({
   return (
     <div
       className={cn(
-        'relative w-full h-full bg-surface rounded-lg overflow-hidden',
+        'group relative w-full h-full bg-surface rounded-lg overflow-hidden',
         isActiveSpeaker && 'ring-2 ring-accent ring-offset-2 ring-offset-base'
       )}
     >
@@ -114,8 +124,22 @@ export function VideoTile({
       {/* Raised hand */}
       {isHandRaised && (
         <div className="absolute top-2 left-2 flex items-center justify-center rounded-full bg-warn p-1.5 shadow-lg">
-          <Hand className={cn('text-white', compact ? 'w-3 h-3' : 'w-4 h-4')} />
+          <Hand className={cn('text-accent-ink', compact ? 'w-3 h-3' : 'w-4 h-4')} />
         </div>
+      )}
+
+      {/* Pin / spotlight control (shows on hover; always tappable on touch) */}
+      {showPin && (
+        <button
+          onClick={() => setPinned(isPinned ? null : uid!)}
+          aria-label={isPinned ? 'Unpin from spotlight' : 'Pin to spotlight'}
+          className={cn(
+            'absolute top-2 right-2 rounded-full bg-black/50 p-1.5 text-white transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-accent hover:bg-black/70',
+            isPinned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+          )}
+        >
+          {isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+        </button>
       )}
 
       {/* Name overlay */}
@@ -134,16 +158,6 @@ export function VideoTile({
         </div>
       </div>
 
-      {/* Active speaker indicator */}
-      {isActiveSpeaker && (
-        <div className="absolute top-3 right-3">
-          <div className="flex gap-1">
-            <div className="w-1.5 h-4 bg-success rounded-full animate-pulse" />
-            <div className="w-1.5 h-4 bg-success rounded-full animate-pulse" style={{ animationDelay: '0.1s' }} />
-            <div className="w-1.5 h-4 bg-success rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-          </div>
-        </div>
-      )}
     </div>
   )
 }
