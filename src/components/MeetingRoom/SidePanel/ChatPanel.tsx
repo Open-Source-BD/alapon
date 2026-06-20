@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send } from 'lucide-react'
+import { Send, X } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
-import { useWebRTC } from '@/hooks/useWebRTC'
 
 interface ChatPanelProps {
-  roomId: string | null
+  // Provided by MeetingRoom's single useWebRTC instance so chat uses the same
+  // peer connections as the media (no second WebRTC stack).
+  sendChatMessage: (text: string) => void
 }
 
-export function ChatPanel({ roomId }: ChatPanelProps) {
+export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
   const [messageText, setMessageText] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const chatMessages = useMeetingStore((s) => s.chatMessages)
   const localUid = useMeetingStore((s) => s.localUid)
-  const webRTC = useWebRTC(roomId)
+  const toggleChat = useMeetingStore((s) => s.toggleChat)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -21,7 +22,7 @@ export function ChatPanel({ roomId }: ChatPanelProps) {
 
   const handleSendMessage = () => {
     if (!messageText.trim()) return
-    webRTC.sendChatMessage(messageText)
+    sendChatMessage(messageText)
     setMessageText('')
   }
 
@@ -33,9 +34,16 @@ export function ChatPanel({ roomId }: ChatPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700">
-      <div className="border-b border-gray-700 px-4 py-3">
+    <div className="flex flex-1 min-w-0 flex-col h-full bg-gray-900">
+      <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
         <h3 className="font-semibold text-white">Chat</h3>
+        <button
+          onClick={toggleChat}
+          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800"
+          title="Close chat"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">

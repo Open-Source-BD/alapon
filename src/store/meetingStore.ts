@@ -63,6 +63,7 @@ export interface MeetingState {
 
   // Chat
   chatMessages: ChatMessage[]
+  unreadChatCount: number
   addChatMessage: (message: ChatMessage) => void
   clearChatMessages: () => void
 
@@ -76,6 +77,10 @@ export interface MeetingState {
   isEncrypted: boolean
   setEncryptionKey: (key: CryptoKey | null) => void
   setIsEncrypted: (encrypted: boolean) => void
+
+  // Errors (surfaced to the user)
+  signalingError: string | null
+  setSignalingError: (error: string | null) => void
 
   // Reset
   reset: () => void
@@ -96,9 +101,11 @@ const initialState = {
   isChatOpen: false,
   isParticipantsOpen: false,
   chatMessages: [],
+  unreadChatCount: 0,
   handRaisedUids: new Set<string>(),
   encryptionKey: null,
   isEncrypted: false,
+  signalingError: null,
 }
 
 export const useMeetingStore = create<MeetingState>()(
@@ -151,15 +158,30 @@ export const useMeetingStore = create<MeetingState>()(
       }),
 
     setActiveSpeaker: (uid: string | null) => set({ activeSpeakerUid: uid }),
-    toggleChat: () => set((state) => { state.isChatOpen = !state.isChatOpen }),
-    toggleParticipants: () => set((state) => { state.isParticipantsOpen = !state.isParticipantsOpen }),
+    toggleChat: () =>
+      set((state) => {
+        state.isChatOpen = !state.isChatOpen
+        // Opening chat marks everything as read; close participants so only one
+        // panel shows at a time.
+        if (state.isChatOpen) {
+          state.unreadChatCount = 0
+          state.isParticipantsOpen = false
+        }
+      }),
+    toggleParticipants: () =>
+      set((state) => {
+        state.isParticipantsOpen = !state.isParticipantsOpen
+        if (state.isParticipantsOpen) state.isChatOpen = false
+      }),
 
     addChatMessage: (message: ChatMessage) =>
       set((state) => {
         state.chatMessages.push(message)
+        // Count as unread only if the chat panel isn't currently open.
+        if (!state.isChatOpen) state.unreadChatCount += 1
       }),
 
-    clearChatMessages: () => set({ chatMessages: [] }),
+    clearChatMessages: () => set({ chatMessages: [], unreadChatCount: 0 }),
 
     toggleHandRaise: (uid: string) =>
       set((state) => {
@@ -174,6 +196,8 @@ export const useMeetingStore = create<MeetingState>()(
 
     setEncryptionKey: (key: CryptoKey | null) => set({ encryptionKey: key }),
     setIsEncrypted: (encrypted: boolean) => set({ isEncrypted: encrypted }),
+
+    setSignalingError: (error: string | null) => set({ signalingError: error }),
 
     reset: () => set(initialState),
   }))

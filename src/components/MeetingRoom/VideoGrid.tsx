@@ -1,16 +1,6 @@
 import { useMeetingStore } from '@/store/meetingStore'
 import { VideoTile } from './VideoTile'
 
-function getGridDimensions(count: number) {
-  if (count === 0) return { cols: 1, rows: 1 }
-  if (count === 1) return { cols: 1, rows: 1 }
-  if (count === 2) return { cols: 2, rows: 1 }
-  if (count <= 4) return { cols: 2, rows: 2 }
-  if (count <= 6) return { cols: 3, rows: 2 }
-  if (count <= 9) return { cols: 3, rows: 3 }
-  return { cols: 4, rows: Math.ceil(count / 4) }
-}
-
 export function VideoGrid() {
   const localUid = useMeetingStore((s) => s.localUid)
   const localName = useMeetingStore((s) => s.localName)
@@ -21,16 +11,16 @@ export function VideoGrid() {
   const activeSpeakerUid = useMeetingStore((s) => s.activeSpeakerUid)
 
   const peerList = Object.values(peers)
-  const totalParticipants = 1 + peerList.length // Self + peers
-  const { cols, rows } = getGridDimensions(totalParticipants)
 
   return (
     <div className="flex-1 bg-gray-900 p-4 overflow-auto">
       <div
         className="h-full grid gap-2"
         style={{
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gridTemplateRows: `repeat(${rows}, 1fr)`,
+          // Auto-fit so tiles wrap responsively: a single column on phones,
+          // more columns as width allows. No manual breakpoint math needed.
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+          gridAutoRows: 'minmax(0, 1fr)',
           minHeight: '100%',
         }}
       >
@@ -55,6 +45,7 @@ export function VideoGrid() {
             isAudioMuted={peer.isAudioMuted}
             isVideoOff={peer.isVideoOff}
             isActiveSpeaker={activeSpeakerUid === peer.uid}
+            connectionState={peer.connectionState}
           />
         ))}
       </div>

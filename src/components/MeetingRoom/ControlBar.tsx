@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Mic, MicOff, Video, VideoOff, Share2, Phone, MessageSquare, Users, MoreVertical } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Mic, MicOff, Video, VideoOff, Share2, Phone, MessageSquare, Users, Link2, Check } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
 
@@ -13,13 +13,24 @@ export function ControlBar({ onLeave }: ControlBarProps) {
   const isScreenSharing = useMeetingStore((s) => s.isScreenSharing)
   const isChatOpen = useMeetingStore((s) => s.isChatOpen)
   const isParticipantsOpen = useMeetingStore((s) => s.isParticipantsOpen)
-  const chatMessages = useMeetingStore((s) => s.chatMessages)
+  const unreadChatCount = useMeetingStore((s) => s.unreadChatCount)
   const peers = useMeetingStore((s) => s.peers)
 
   const toggleChat = useMeetingStore((s) => s.toggleChat)
   const toggleParticipants = useMeetingStore((s) => s.toggleParticipants)
 
   const mediaStream = useMediaStream()
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const handleCopyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch {
+      // Clipboard can be blocked; ignore — the URL is still in the address bar.
+    }
+  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -61,19 +72,24 @@ export function ControlBar({ onLeave }: ControlBarProps) {
     }
   }
 
-  const unreadCount = chatMessages.length > 0 ? chatMessages.length : 0
-
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-700 px-6 py-4">
-      <div className="flex items-center justify-between max-w-7xl mx-auto">
-        {/* Left: Meeting info */}
-        <div className="flex items-center gap-3">
-          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+    <div className="shrink-0 bg-gray-900 border-t border-gray-700 px-4 sm:px-6 py-3">
+      <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
+        {/* Left: Meeting info + invite link (hidden on narrow screens) */}
+        <div className="hidden md:flex items-center gap-3 flex-1 min-w-0">
           <span className="text-gray-300 text-sm">Alapon</span>
           <span className="text-gray-500">|</span>
-          <span className="text-gray-400 text-sm">{1 + Object.keys(peers).length} participants</span>
+          <span className="text-gray-400 text-sm whitespace-nowrap">{1 + Object.keys(peers).length} participants</span>
+          <button
+            onClick={handleCopyInvite}
+            className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors ${
+              linkCopied ? 'bg-green-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+            }`}
+            title="Copy invite link"
+          >
+            {linkCopied ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+            {linkCopied ? 'Copied!' : 'Invite'}
+          </button>
         </div>
 
         {/* Center: Media controls */}
@@ -123,13 +139,6 @@ export function ControlBar({ onLeave }: ControlBarProps) {
           </button>
 
           <button
-            className="p-3 rounded-full bg-gray-700 hover:bg-gray-600"
-            title="More options"
-          >
-            <MoreVertical className="w-5 h-5 text-white" />
-          </button>
-
-          <button
             onClick={onLeave}
             className="p-3 rounded-full bg-red-600 hover:bg-red-700"
             title="Leave meeting (Esc)"
@@ -150,9 +159,9 @@ export function ControlBar({ onLeave }: ControlBarProps) {
             title="Toggle chat"
           >
             <MessageSquare className="w-5 h-5 text-white" />
-            {unreadCount > 0 && (
+            {unreadChatCount > 0 && (
               <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {unreadCount > 9 ? '9+' : unreadCount}
+                {unreadChatCount > 9 ? '9+' : unreadChatCount}
               </span>
             )}
           </button>

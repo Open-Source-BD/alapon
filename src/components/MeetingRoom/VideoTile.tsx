@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { MicOff } from 'lucide-react'
+import { MicOff, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface VideoTileProps {
@@ -9,6 +9,7 @@ interface VideoTileProps {
   isAudioMuted: boolean
   isVideoOff: boolean
   isActiveSpeaker: boolean
+  connectionState?: RTCPeerConnectionState | null
 }
 
 export function VideoTile({
@@ -18,6 +19,7 @@ export function VideoTile({
   isAudioMuted,
   isVideoOff,
   isActiveSpeaker,
+  connectionState,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -34,6 +36,14 @@ export function VideoTile({
     .join('')
     .toUpperCase()
 
+  // Remote peers only. 'completed' is an ICE state, not a peer-connection state,
+  // so it is intentionally absent here.
+  const isConnecting =
+    !isLocal && (connectionState === 'new' || connectionState === 'connecting')
+  const isReconnecting =
+    !isLocal &&
+    (connectionState === 'disconnected' || connectionState === 'failed')
+
   return (
     <div
       className={cn(
@@ -41,26 +51,46 @@ export function VideoTile({
         isActiveSpeaker && 'ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-950'
       )}
     >
-      {!isVideoOff && stream ? (
-        <>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={isLocal}
-            className={cn(
-              'w-full h-full object-cover',
-              isLocal && 'scale-x-[-1]' // Mirror local video
-            )}
-          />
-        </>
-      ) : (
-        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+      {/* Keep the media element mounted whenever a stream exists so its AUDIO
+          keeps playing even when the camera is off. Previously the <video> was
+          only rendered when video was on, so a peer with their camera off was
+          inaudible ("no real voice"). Local is always muted to avoid hearing
+          yourself (echo). Hidden visually (not unmounted) when video is off. */}
+      {stream && (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={isLocal}
+          className={cn(
+            'w-full h-full object-cover',
+            isLocal && 'scale-x-[-1]', // Mirror local video
+            isVideoOff && 'hidden'
+          )}
+        />
+      )}
+
+      {(isVideoOff || !stream) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
           <div className="text-center">
-            <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center mx-auto mb-4">
-              <span className="text-3xl font-bold text-white">{initials}</span>
-            </div>
-            <p className="text-gray-400 text-sm">Camera off</p>
+            {isConnecting ? (
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+                <p className="text-gray-400 text-sm">Connecting...</p>
+              </div>
+            ) : isReconnecting ? (
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-12 h-12 text-amber-500 animate-spin" />
+                <p className="text-amber-400 text-sm">Reconnecting...</p>
+              </div>
+            ) : (
+              <>
+                <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl font-bold text-white">{initials}</span>
+                </div>
+                <p className="text-gray-400 text-sm">{isVideoOff ? 'Camera off' : 'Waiting for video...'}</p>
+              </>
+            )}
           </div>
         </div>
       )}

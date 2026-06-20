@@ -6,7 +6,8 @@
 
 ✅ **No Backend Required** — Serverless architecture using Firebase Realtime Database for signaling only  
 ✅ **Peer-to-Peer Calls** — Direct WebRTC connections, no media relay  
-✅ **End-to-End Encryption** — DTLS-SRTP + AES-GCM-256 (key in URL fragment)  
+✅ **Transport Encryption** — DTLS-SRTP on all media (WebRTC default)  
+🚧 **End-to-End Frame Encryption** — AES-GCM-256 via Insertable Streams is implemented (`src/lib/crypto.ts`) but **not currently enabled** (see Known Limitations)  
 ✅ **Google Meet UI** — Dark theme, responsive grid, control bar, participant list  
 ✅ **Screen Sharing** — Share your screen with participants  
 ✅ **In-Call Chat** — Text messaging via WebRTC DataChannel  
@@ -100,9 +101,23 @@ npm run preview
 
 4. **Media & Encryption**
    - Camera/microphone streams flow directly peer-to-peer
-   - DTLS-SRTP encrypts media in transit (default)
-   - Optional: Insertable Streams apply frame-level AES-GCM encryption
+   - DTLS-SRTP encrypts media in transit (default, always on)
+   - Frame-level AES-GCM E2E encryption (Insertable Streams) is implemented but
+     currently disabled — see Known Limitations
    - Chat messages are exchanged via WebRTC DataChannel
+
+## Known Limitations
+
+- **Frame-level E2E encryption is disabled.** The Insertable Streams transforms
+  in `src/lib/crypto.ts` (`applyEncoderTransform` / `applyDecoderTransform`) are
+  wired for AES-GCM-256 with a key derived from the URL fragment, but
+  `encodedInsertableStreams` is commented out in `useWebRTC.ts` because enabling
+  it previously broke video playback. Media is still encrypted in transit by
+  DTLS-SRTP. **TODO:** debug and re-enable frame-level E2E.
+- **Mesh topology.** Every peer connects to every other peer, so practical room
+  size is limited (roughly 4-6 participants before bandwidth/CPU degrade).
+- **Answerer-initiated renegotiation** (e.g. the answerer stopping a screen
+  share) may not propagate; only the offerer (lower UID) drives renegotiation.
 
 ## Project Structure
 

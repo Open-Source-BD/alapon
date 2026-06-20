@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useMeetingStore } from '@/store/meetingStore'
 
 const AUDIO_LEVEL_THRESHOLD = 0.01
@@ -11,15 +11,19 @@ export function useActiveSpeaker() {
 
   const setActiveSpeaker = useMeetingStore((s) => s.setActiveSpeaker)
 
-  // Register peer connections (to be called from useWebRTC)
-  const registerPeerConnection = (uid: string, pc: RTCPeerConnection) => {
-    peerConnectionsRef.current.set(uid, pc)
-  }
+  // Register peer connections (called from useWebRTC). Memoized so callers can
+  // safely depend on these without re-creating their own callbacks every render.
+  const registerPeerConnection = useCallback(
+    (uid: string, pc: RTCPeerConnection) => {
+      peerConnectionsRef.current.set(uid, pc)
+    },
+    []
+  )
 
-  const unregisterPeerConnection = (uid: string) => {
+  const unregisterPeerConnection = useCallback((uid: string) => {
     peerConnectionsRef.current.delete(uid)
     speakerChangeCounterRef.current.delete(uid)
-  }
+  }, [])
 
   useEffect(() => {
     const pollAudioLevels = async () => {

@@ -12,10 +12,12 @@
         "signaling": {
           "$slot": {
             "offer": {
-              ".write": "!data.exists()"
+              ".write": true,
+              ".validate": "newData.hasChild('sdp')"
             },
             "answer": {
-              ".write": "!data.exists()"
+              ".write": true,
+              ".validate": "newData.hasChild('sdp')"
             },
             "offerCandidates": {
               ".write": true
