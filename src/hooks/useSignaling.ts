@@ -38,6 +38,7 @@ export function useSignaling(
   const localName = useMeetingStore((s) => s.localName)
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
+  const isHandRaised = useMeetingStore((s) => s.isHandRaised)
   const updatePeer = useMeetingStore((s) => s.updatePeer)
   const setSignalingError = useMeetingStore((s) => s.setSignalingError)
 
@@ -77,6 +78,7 @@ export function useSignaling(
           joinedAt: serverTimestamp(),
           isAudioMuted,
           isVideoOff,
+          isHandRaised,
         })
 
         // Presence object now exists, so child-key writes (mute/video sync)
@@ -114,10 +116,11 @@ export function useSignaling(
                   }
                 }
 
-                // Sync mute/video state
+                // Sync mute/video/hand state
                 updatePeer(uid, {
                   isAudioMuted: data.isAudioMuted ?? false,
                   isVideoOff: data.isVideoOff ?? false,
+                  isHandRaised: data.isHandRaised ?? false,
                 })
               }
             )
@@ -160,7 +163,8 @@ export function useSignaling(
     const presenceRef = participantRef(roomId, localUid)
     set(child(presenceRef, 'isAudioMuted'), isAudioMuted)
     set(child(presenceRef, 'isVideoOff'), isVideoOff)
-  }, [roomId, localUid, isAudioMuted, isVideoOff])
+    set(child(presenceRef, 'isHandRaised'), isHandRaised)
+  }, [roomId, localUid, isAudioMuted, isVideoOff, isHandRaised])
 
   function setupOfferListener(
     roomId: string,

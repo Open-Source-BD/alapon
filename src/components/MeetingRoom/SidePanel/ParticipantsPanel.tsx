@@ -1,10 +1,11 @@
-import { Mic, MicOff, Video, VideoOff, X } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, X, Hand } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 
 export function ParticipantsPanel() {
   const localName = useMeetingStore((s) => s.localName)
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
+  const isHandRaised = useMeetingStore((s) => s.isHandRaised)
   const peers = useMeetingStore((s) => s.peers)
   const toggleParticipants = useMeetingStore((s) => s.toggleParticipants)
 
@@ -16,8 +17,8 @@ export function ParticipantsPanel() {
         </h3>
         <button
           onClick={toggleParticipants}
-          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800"
-          title="Close participants"
+          aria-label="Close participants panel"
+          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
           <X className="w-5 h-5" />
         </button>
@@ -39,6 +40,11 @@ export function ParticipantsPanel() {
               </div>
             </div>
             <div className="flex gap-2 flex-shrink-0 ml-2">
+              {isHandRaised && (
+                <div className="p-1.5 rounded bg-amber-500/20">
+                  <Hand className="w-3 h-3 text-amber-400" />
+                </div>
+              )}
               {isAudioMuted ? (
                 <div className="p-1.5 rounded bg-gray-700">
                   <MicOff className="w-3 h-3 text-red-400" />
@@ -90,6 +96,11 @@ export function ParticipantsPanel() {
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0 ml-2">
+                {peer.isHandRaised && (
+                  <div className="p-1.5 rounded bg-amber-500/20">
+                    <Hand className="w-3 h-3 text-amber-400" />
+                  </div>
+                )}
                 {peer.isAudioMuted ? (
                   <div className="p-1.5 rounded bg-gray-700">
                     <MicOff className="w-3 h-3 text-red-400" />

@@ -1,36 +1,86 @@
-import { useEffect, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, Share2, Phone, MessageSquare, Users, Link2, Check } from 'lucide-react'
+import { useEffect } from 'react'
+import {
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  Share2,
+  Phone,
+  MessageSquare,
+  Users,
+  Hand,
+} from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
+import { cn } from '@/lib/utils'
 
 interface ControlBarProps {
   onLeave: () => void
+}
+
+interface ControlButtonProps {
+  onClick: () => void
+  label: string
+  active?: boolean // toggled-on / attention state (red or accent)
+  accent?: 'red' | 'green' | 'amber' | 'blue'
+  badge?: number
+  className?: string
+  children: React.ReactNode
+}
+
+function ControlButton({
+  onClick,
+  label,
+  active,
+  accent = 'red',
+  badge,
+  className,
+  children,
+}: ControlButtonProps) {
+  const activeBg = {
+    red: 'bg-red-600 hover:bg-red-700',
+    green: 'bg-green-600 hover:bg-green-700',
+    amber: 'bg-amber-500 hover:bg-amber-600',
+    blue: 'bg-blue-600 hover:bg-blue-700',
+  }[accent]
+
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      className={cn(
+        'relative rounded-full p-3 text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900',
+        active ? activeBg : 'bg-gray-700 hover:bg-gray-600',
+        className
+      )}
+    >
+      {children}
+      {badge !== undefined && badge > 0 && (
+        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+    </button>
+  )
 }
 
 export function ControlBar({ onLeave }: ControlBarProps) {
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
   const isScreenSharing = useMeetingStore((s) => s.isScreenSharing)
+  const isHandRaised = useMeetingStore((s) => s.isHandRaised)
   const isChatOpen = useMeetingStore((s) => s.isChatOpen)
   const isParticipantsOpen = useMeetingStore((s) => s.isParticipantsOpen)
   const unreadChatCount = useMeetingStore((s) => s.unreadChatCount)
-  const peers = useMeetingStore((s) => s.peers)
 
   const toggleChat = useMeetingStore((s) => s.toggleChat)
   const toggleParticipants = useMeetingStore((s) => s.toggleParticipants)
+  const toggleHandRaise = useMeetingStore((s) => s.toggleHandRaise)
+  const addToast = useMeetingStore((s) => s.addToast)
 
   const mediaStream = useMediaStream()
-  const [linkCopied, setLinkCopied] = useState(false)
-
-  const handleCopyInvite = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href)
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    } catch {
-      // Clipboard can be blocked; ignore — the URL is still in the address bar.
-    }
-  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -52,14 +102,6 @@ export function ControlBar({ onLeave }: ControlBarProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [mediaStream, onLeave])
 
-  const handleToggleMic = () => {
-    mediaStream.toggleAudio()
-  }
-
-  const handleToggleCamera = () => {
-    mediaStream.toggleVideo()
-  }
-
   const handleToggleScreenShare = async () => {
     try {
       if (isScreenSharing) {
@@ -69,118 +111,79 @@ export function ControlBar({ onLeave }: ControlBarProps) {
       }
     } catch (error) {
       console.error('Screen share error:', error)
+      addToast('Could not start screen sharing', 'error')
     }
   }
 
+  const handleToggleHand = () => {
+    const raising = !isHandRaised
+    toggleHandRaise()
+    addToast(raising ? 'Hand raised' : 'Hand lowered', 'info')
+  }
+
   return (
-    <div className="shrink-0 bg-gray-900 border-t border-gray-700 px-4 sm:px-6 py-3">
-      <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
-        {/* Left: Meeting info + invite link (hidden on narrow screens) */}
-        <div className="hidden md:flex items-center gap-3 flex-1 min-w-0">
-          <span className="text-gray-300 text-sm">Alapon</span>
-          <span className="text-gray-500">|</span>
-          <span className="text-gray-400 text-sm whitespace-nowrap">{1 + Object.keys(peers).length} participants</span>
-          <button
-            onClick={handleCopyInvite}
-            className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors ${
-              linkCopied ? 'bg-green-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-            }`}
-            title="Copy invite link"
-          >
-            {linkCopied ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
-            {linkCopied ? 'Copied!' : 'Invite'}
-          </button>
-        </div>
+    <div className="shrink-0 bg-gray-900 border-t border-gray-700 px-2 py-3 sm:px-6">
+      <div className="flex items-center justify-center gap-2 sm:gap-3">
+        <ControlButton
+          onClick={mediaStream.toggleAudio}
+          label={isAudioMuted ? 'Unmute microphone (Ctrl+D)' : 'Mute microphone (Ctrl+D)'}
+          active={isAudioMuted}
+          accent="red"
+        >
+          {isAudioMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+        </ControlButton>
 
-        {/* Center: Media controls */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleToggleMic}
-            className={`p-3 rounded-full transition-colors ${
-              isAudioMuted
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            title="Ctrl+D: Toggle microphone"
-          >
-            {isAudioMuted ? (
-              <MicOff className="w-5 h-5 text-white" />
-            ) : (
-              <Mic className="w-5 h-5 text-white" />
-            )}
-          </button>
+        <ControlButton
+          onClick={mediaStream.toggleVideo}
+          label={isVideoOff ? 'Turn camera on (Ctrl+E)' : 'Turn camera off (Ctrl+E)'}
+          active={isVideoOff}
+          accent="red"
+        >
+          {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+        </ControlButton>
 
-          <button
-            onClick={handleToggleCamera}
-            className={`p-3 rounded-full transition-colors ${
-              isVideoOff
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            title="Ctrl+E: Toggle camera"
-          >
-            {isVideoOff ? (
-              <VideoOff className="w-5 h-5 text-white" />
-            ) : (
-              <Video className="w-5 h-5 text-white" />
-            )}
-          </button>
+        <ControlButton
+          onClick={handleToggleHand}
+          label={isHandRaised ? 'Lower hand' : 'Raise hand'}
+          active={isHandRaised}
+          accent="amber"
+        >
+          <Hand className="w-5 h-5" />
+        </ControlButton>
 
-          <button
-            onClick={handleToggleScreenShare}
-            className={`p-3 rounded-full transition-colors ${
-              isScreenSharing
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            title="Share screen"
-          >
-            <Share2 className="w-5 h-5 text-white" />
-          </button>
+        {/* Screen share is desktop-only (getDisplayMedia is unreliable on mobile) */}
+        <ControlButton
+          onClick={handleToggleScreenShare}
+          label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+          active={isScreenSharing}
+          accent="green"
+          className="hidden sm:inline-flex"
+        >
+          <Share2 className="w-5 h-5" />
+        </ControlButton>
 
-          <button
-            onClick={onLeave}
-            className="p-3 rounded-full bg-red-600 hover:bg-red-700"
-            title="Leave meeting (Esc)"
-          >
-            <Phone className="w-5 h-5 text-white" />
-          </button>
-        </div>
+        <ControlButton onClick={onLeave} label="Leave meeting (Esc)" active accent="red">
+          <Phone className="w-5 h-5 rotate-[135deg]" />
+        </ControlButton>
 
-        {/* Right: Sidebar toggles */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleChat}
-            className={`relative p-3 rounded-full transition-colors ${
-              isChatOpen
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            title="Toggle chat"
-          >
-            <MessageSquare className="w-5 h-5 text-white" />
-            {unreadChatCount > 0 && (
-              <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {unreadChatCount > 9 ? '9+' : unreadChatCount}
-              </span>
-            )}
-          </button>
+        <ControlButton
+          onClick={toggleChat}
+          label="Toggle chat"
+          active={isChatOpen}
+          accent="blue"
+          badge={unreadChatCount}
+        >
+          <MessageSquare className="w-5 h-5" />
+        </ControlButton>
 
-          <button
-            onClick={toggleParticipants}
-            className={`relative p-3 rounded-full transition-colors ${
-              isParticipantsOpen
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            title="Toggle participants"
-          >
-            <Users className="w-5 h-5 text-white" />
-            <span className="absolute top-0 right-0 bg-gray-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {1 + Object.keys(peers).length}
-            </span>
-          </button>
-        </div>
+        <ControlButton
+          onClick={toggleParticipants}
+          label="Toggle participants"
+          active={isParticipantsOpen}
+          accent="blue"
+        >
+          <Users className="w-5 h-5" />
+        </ControlButton>
       </div>
     </div>
   )

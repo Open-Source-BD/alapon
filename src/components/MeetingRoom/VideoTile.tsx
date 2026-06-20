@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { MicOff, Loader2 } from 'lucide-react'
+import { MicOff, Loader2, Hand } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface VideoTileProps {
@@ -9,7 +9,10 @@ interface VideoTileProps {
   isAudioMuted: boolean
   isVideoOff: boolean
   isActiveSpeaker: boolean
+  isHandRaised?: boolean
   connectionState?: RTCPeerConnectionState | null
+  /** Picture-in-picture mode: smaller chrome for the pinned self-view. */
+  compact?: boolean
 }
 
 export function VideoTile({
@@ -19,7 +22,9 @@ export function VideoTile({
   isAudioMuted,
   isVideoOff,
   isActiveSpeaker,
+  isHandRaised,
   connectionState,
+  compact,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -95,16 +100,24 @@ export function VideoTile({
         </div>
       )}
 
+      {/* Raised hand */}
+      {isHandRaised && (
+        <div className="absolute top-2 left-2 flex items-center justify-center rounded-full bg-amber-500 p-1.5 shadow-lg">
+          <Hand className={cn('text-white', compact ? 'w-3 h-3' : 'w-4 h-4')} />
+        </div>
+      )}
+
       {/* Name overlay */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+      <div className={cn('absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent', compact ? 'p-1.5' : 'p-3')}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <p className="text-white text-sm font-medium truncate">{name}</p>
-            {isLocal && <span className="text-xs bg-blue-600 px-2 py-1 rounded text-white whitespace-nowrap">(You)</span>}
+            <p className={cn('text-white font-medium truncate', compact ? 'text-xs' : 'text-sm')}>
+              {isLocal ? `${name} (You)` : name}
+            </p>
           </div>
           {isAudioMuted && (
             <div className="ml-2 flex-shrink-0">
-              <MicOff className="w-4 h-4 text-red-400" />
+              <MicOff className={cn('text-red-400', compact ? 'w-3 h-3' : 'w-4 h-4')} />
             </div>
           )}
         </div>
