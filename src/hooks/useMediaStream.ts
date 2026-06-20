@@ -16,6 +16,14 @@ export function useMediaStream() {
   const localStream = useMeetingStore((s) => s.localStream)
 
   async function startMedia(): Promise<void> {
+    // Idempotent: if this instance already acquired (or is acquiring) media,
+    // don't call getUserMedia again. Without this, a caller whose effect re-runs
+    // (e.g. PreJoinScreen) would repeatedly re-acquire the camera and swap the
+    // <video> srcObject, which shows up as flicker. Set the flag synchronously
+    // so concurrent re-entries before the first await also bail.
+    if (startedRef.current) return
+    startedRef.current = true
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -31,7 +39,6 @@ export function useMediaStream() {
       })
 
       streamRef.current = stream
-      startedRef.current = true
       setLocalStream(stream)
 
       // Apply initial mute/off states
@@ -42,6 +49,8 @@ export function useMediaStream() {
         track.enabled = !isVideoOff
       })
     } catch (error) {
+      // Allow a later retry (e.g. after the user grants permission).
+      startedRef.current = false
       console.error('Failed to get user media:', error)
       throw error
     }
@@ -53,6 +62,9 @@ export function useMediaStream() {
       streamRef.current = null
       setLocalStream(null)
     }
+    // Reset so a remount can re-acquire (matters for React StrictMode's
+    // mount→unmount→mount cycle in dev, and for explicit restarts).
+    startedRef.current = false
   }
 
   function toggleAudio(): void {
@@ -157,15 +169,12 @@ export function useMediaStream() {
     }
   }, [localStream])
 
-  // Cleanup on unmount (only stop if THIS instance started the media)
-  useEffect(() => {
-    return () => {
-      if (startedRef.current) {
-        stopMedia()
-        stopScreenShare()
-      }
-    }
-  }, [])
+  // NOTE: deliberately no stop-on-unmount here. The local stream is a session
+  // resource shared across PreJoinScreen, MeetingRoom and ControlBar via the
+  // store. Stopping it when PreJoinScreen unmounts (navigating into the meeting)
+  // would kill the camera tracks before the meeting starts, leaving the local
+  // user with no video. Teardown happens explicitly on leave (handleLeave ->
+  // stopMedia) and the browser stops tracks on tab close.
 
   return {
     startMedia,

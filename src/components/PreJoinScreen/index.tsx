@@ -33,6 +33,9 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
   const micMuted = useMeetingStore((s) => s.isAudioMuted)
   const localStream = useMeetingStore((s) => s.localStream)
 
+  // Acquire camera/mic once on mount. mediaStream is a fresh object every render,
+  // so depending on it would re-run this effect constantly (and re-acquire the
+  // camera, causing flicker). startMedia is also idempotent as a second guard.
   useEffect(() => {
     const initMedia = async () => {
       try {
@@ -44,7 +47,8 @@ export function PreJoinScreen({ roomId: initialRoomId }: PreJoinScreenProps) {
     }
 
     initMedia()
-  }, [mediaStream])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (videoRef.current && localStream) {
