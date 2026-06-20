@@ -9,7 +9,7 @@ export function ParticipantsPanel() {
   const toggleParticipants = useMeetingStore((s) => s.toggleParticipants)
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700">
+    <div className="flex flex-1 min-w-0 flex-col h-full bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
         <h3 className="font-semibold text-white">
           Participants ({1 + Object.keys(peers).length})

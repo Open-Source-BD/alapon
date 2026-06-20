@@ -34,7 +34,7 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700">
+    <div className="flex flex-1 min-w-0 flex-col h-full bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
         <h3 className="font-semibold text-white">Chat</h3>
         <button

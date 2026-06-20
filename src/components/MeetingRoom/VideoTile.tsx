@@ -51,21 +51,27 @@ export function VideoTile({
         isActiveSpeaker && 'ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-950'
       )}
     >
-      {!isVideoOff && stream ? (
-        <>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={isLocal}
-            className={cn(
-              'w-full h-full object-cover',
-              isLocal && 'scale-x-[-1]' // Mirror local video
-            )}
-          />
-        </>
-      ) : (
-        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+      {/* Keep the media element mounted whenever a stream exists so its AUDIO
+          keeps playing even when the camera is off. Previously the <video> was
+          only rendered when video was on, so a peer with their camera off was
+          inaudible ("no real voice"). Local is always muted to avoid hearing
+          yourself (echo). Hidden visually (not unmounted) when video is off. */}
+      {stream && (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={isLocal}
+          className={cn(
+            'w-full h-full object-cover',
+            isLocal && 'scale-x-[-1]', // Mirror local video
+            isVideoOff && 'hidden'
+          )}
+        />
+      )}
+
+      {(isVideoOff || !stream) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
           <div className="text-center">
             {isConnecting ? (
               <div className="flex flex-col items-center gap-4">
