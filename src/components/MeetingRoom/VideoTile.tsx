@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MicOff, Loader2, Hand, Pin, PinOff, MonitorUp } from 'lucide-react'
 import { useMeetingStore, type ConnectionQuality } from '@/store/meetingStore'
 import { SignalBars } from './SignalBars'
@@ -55,6 +55,23 @@ export function VideoTile({
     }
   }, [stream])
 
+  // While this video is in Picture-in-Picture, drop the mirror transform — the browser
+  // renders its "Playing in Video Popout" placeholder inside the element, and a mirrored
+  // element flips that text backwards.
+  const [inPiP, setInPiP] = useState(false)
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    const onEnter = () => setInPiP(true)
+    const onLeave = () => setInPiP(false)
+    v.addEventListener('enterpictureinpicture', onEnter)
+    v.addEventListener('leavepictureinpicture', onLeave)
+    return () => {
+      v.removeEventListener('enterpictureinpicture', onEnter)
+      v.removeEventListener('leavepictureinpicture', onLeave)
+    }
+  }, [])
+
   // Generate initials avatar
   const initials = name
     .split(' ')
@@ -97,7 +114,7 @@ export function VideoTile({
             // Screens are letterboxed (object-contain) and never mirrored; camera
             // tiles fill (object-cover) and the local camera is mirrored.
             isScreen ? 'object-contain bg-black' : 'object-cover',
-            isLocal && !isScreen && 'scale-x-[-1]',
+            isLocal && !isScreen && !inPiP && 'scale-x-[-1]',
             // A shared screen stays visible even if the camera was off.
             isVideoOff && !isScreen && 'hidden'
           )}
