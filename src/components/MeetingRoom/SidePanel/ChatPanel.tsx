@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, X, Smile, CornerUpLeft, Copy, Trash2, SmilePlus, Check, CheckCheck, Paperclip, FileText, Download } from 'lucide-react'
+import { Send, X, Smile, CornerUpLeft, Copy, Trash2, SmilePlus, Check, CheckCheck, Paperclip, FileText, Download, MoreVertical } from 'lucide-react'
 import { useMeetingStore, type ChatMessage, type ReplyRef } from '@/store/meetingStore'
 import { EmojiPicker } from '../EmojiPicker'
 import { REACTION_EMOJIS } from '@/lib/emoji'
@@ -68,6 +68,12 @@ interface BubbleProps {
 
 function MessageBubble({ msg, isOwn, localUid, peerCount, onReply, onReact, onDelete, onCopy }: BubbleProps) {
   const [reactOpen, setReactOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const closeMenus = () => {
+    setMenuOpen(false)
+    setReactOpen(false)
+  }
 
   const time = new Date(msg.timestamp).toLocaleTimeString([], {
     hour: '2-digit',
@@ -142,62 +148,84 @@ function MessageBubble({ msg, isOwn, localUid, peerCount, onReply, onReact, onDe
         </div>
       )}
 
-      {/* Hover actions */}
+      {/* Message actions. A ⋯ trigger (always visible on touch, hover on desktop) opens
+          the toolbar DOWNWARD so it's never clipped by the scroll list — even for the
+          first/top message or a tall image. */}
       {!msg.deleted && (
-        <div className="absolute -top-2 right-0 hidden items-center gap-0.5 rounded-md border border-border bg-elevated px-1 py-0.5 shadow-lg group-hover:flex">
-          <div className="relative">
-            <button
-              onClick={() => setReactOpen((o) => !o)}
-              aria-label="React to message"
-              className="rounded p-1 text-muted hover:text-text hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              <SmilePlus className="h-4 w-4" />
-            </button>
-            {reactOpen && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setReactOpen(false)} aria-hidden />
-                <div className="absolute bottom-full right-0 z-30 mb-1 flex gap-0.5 rounded-full border border-border bg-elevated px-1.5 py-1 shadow-xl">
-                  {REACTION_EMOJIS.map((e) => (
-                    <button
-                      key={e}
-                      onClick={() => {
-                        onReact(msg.id, e)
-                        setReactOpen(false)
-                      }}
-                      aria-label={`React ${e}`}
-                      className="rounded-full px-1 text-lg hover:scale-125 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      {e}
-                    </button>
-                  ))}
+        <>
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Message actions"
+            className="absolute right-1 top-1 z-10 rounded bg-elevated/80 p-1 text-muted opacity-0 transition-opacity hover:text-text focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent group-hover:opacity-100 max-sm:opacity-100"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={closeMenus} aria-hidden />
+              <div className="absolute right-1 top-8 z-30 flex items-center gap-0.5 rounded-md border border-border bg-elevated px-1 py-0.5 shadow-lg">
+                <div className="relative">
+                  <button
+                    onClick={() => setReactOpen((o) => !o)}
+                    aria-label="React to message"
+                    className="rounded p-1 text-muted hover:bg-border hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <SmilePlus className="h-4 w-4" />
+                  </button>
+                  {reactOpen && (
+                    <div className="absolute right-0 top-full z-40 mt-1 flex gap-0.5 rounded-full border border-border bg-elevated px-1.5 py-1 shadow-xl">
+                      {REACTION_EMOJIS.map((e) => (
+                        <button
+                          key={e}
+                          onClick={() => {
+                            onReact(msg.id, e)
+                            closeMenus()
+                          }}
+                          aria-label={`React ${e}`}
+                          className="rounded-full px-1 text-lg transition-transform hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </>
-            )}
-          </div>
-          <button
-            onClick={() => onReply(msg)}
-            aria-label="Reply to message"
-            className="rounded p-1 text-muted hover:text-text hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <CornerUpLeft className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onCopy(msg.text)}
-            aria-label="Copy message"
-            className="rounded p-1 text-muted hover:text-text hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <Copy className="h-4 w-4" />
-          </button>
-          {isOwn && (
-            <button
-              onClick={() => onDelete(msg.id)}
-              aria-label="Delete message"
-              className="rounded p-1 text-muted hover:text-danger hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+                <button
+                  onClick={() => {
+                    onReply(msg)
+                    closeMenus()
+                  }}
+                  aria-label="Reply to message"
+                  className="rounded p-1 text-muted hover:bg-border hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <CornerUpLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    onCopy(msg.text)
+                    closeMenus()
+                  }}
+                  aria-label="Copy message"
+                  className="rounded p-1 text-muted hover:bg-border hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+                {isOwn && (
+                  <button
+                    onClick={() => {
+                      onDelete(msg.id)
+                      closeMenus()
+                    }}
+                    aria-label="Delete message"
+                    className="rounded p-1 text-muted hover:bg-border hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </>
           )}
-        </div>
+        </>
       )}
     </div>
   )

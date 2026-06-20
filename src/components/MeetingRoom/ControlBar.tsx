@@ -103,6 +103,11 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
   const mediaStream = useMediaStream()
   const [reactionsOpen, setReactionsOpen] = useState(false)
 
+  // Gate screen share on actual browser support, not viewport width. getDisplayMedia
+  // is absent on iOS Safari and insecure origins (where navigator.mediaDevices itself
+  // is undefined), but present on desktop browsers at any window size.
+  const canScreenShare = typeof navigator.mediaDevices?.getDisplayMedia === 'function'
+
   const handleReaction = (emoji: string) => {
     onReaction(emoji)
     setReactionsOpen(false)
@@ -222,21 +227,22 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
           label={layout === 'grid' ? 'Switch to spotlight layout' : 'Switch to grid layout'}
           active={layout === 'grid'}
           accent="blue"
-          className="hidden sm:inline-flex"
         >
           <LayoutGrid className="w-5 h-5" />
         </ControlButton>
 
-        {/* Screen share is desktop-only (getDisplayMedia is unreliable on mobile) */}
-        <ControlButton
-          onClick={handleToggleScreenShare}
-          label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
-          active={isScreenSharing}
-          accent="green"
-          className="hidden sm:inline-flex"
-        >
-          <Share2 className="w-5 h-5" />
-        </ControlButton>
+        {/* Shown only where the browser actually supports screen capture (any desktop
+            width); hidden on iOS Safari / insecure origins to avoid a dead button. */}
+        {canScreenShare && (
+          <ControlButton
+            onClick={handleToggleScreenShare}
+            label={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+            active={isScreenSharing}
+            accent="green"
+          >
+            <Share2 className="w-5 h-5" />
+          </ControlButton>
+        )}
 
         <ControlButton onClick={onLeave} label="Leave meeting (Esc)" active accent="red">
           <Phone className="w-5 h-5 rotate-[135deg]" />
