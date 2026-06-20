@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send } from 'lucide-react'
+import { Send, X } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 
 interface ChatPanelProps {
@@ -14,6 +14,7 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
 
   const chatMessages = useMeetingStore((s) => s.chatMessages)
   const localUid = useMeetingStore((s) => s.localUid)
+  const toggleChat = useMeetingStore((s) => s.toggleChat)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -34,8 +35,15 @@ export function ChatPanel({ sendChatMessage }: ChatPanelProps) {
 
   return (
     <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700">
-      <div className="border-b border-gray-700 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
         <h3 className="font-semibold text-white">Chat</h3>
+        <button
+          onClick={toggleChat}
+          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800"
+          title="Close chat"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">

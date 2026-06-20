@@ -73,7 +73,7 @@ export function ControlBar({ onLeave }: ControlBarProps) {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-700 px-4 sm:px-6 py-4">
+    <div className="shrink-0 bg-gray-900 border-t border-gray-700 px-4 sm:px-6 py-3">
       <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
         {/* Left: Meeting info + invite link (hidden on narrow screens) */}
         <div className="hidden md:flex items-center gap-3 flex-1 min-w-0">

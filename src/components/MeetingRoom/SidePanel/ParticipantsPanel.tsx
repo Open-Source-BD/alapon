@@ -1,4 +1,4 @@
-import { Mic, MicOff, Video, VideoOff } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, X } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 
 export function ParticipantsPanel() {
@@ -6,13 +6,21 @@ export function ParticipantsPanel() {
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
   const peers = useMeetingStore((s) => s.peers)
+  const toggleParticipants = useMeetingStore((s) => s.toggleParticipants)
 
   return (
     <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700">
-      <div className="border-b border-gray-700 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
         <h3 className="font-semibold text-white">
           Participants ({1 + Object.keys(peers).length})
         </h3>
+        <button
+          onClick={toggleParticipants}
+          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800"
+          title="Close participants"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">

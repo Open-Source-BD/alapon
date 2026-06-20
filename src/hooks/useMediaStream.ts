@@ -68,29 +68,29 @@ export function useMediaStream() {
   }
 
   function toggleAudio(): void {
-    if (!streamRef.current) return
+    // Read the stream from the store, not this instance's ref. useMediaStream is
+    // mounted in several components (PreJoin, MeetingRoom, ControlBar); the
+    // ControlBar copy may never have re-attached its ref, which previously made
+    // the mic button a silent no-op. The store stream is the single source.
+    const stream = streamRef.current ?? useMeetingStore.getState().localStream
+    if (!stream) return
 
-    const audioTracks = streamRef.current.getAudioTracks()
-    const muted = audioTracks[0]?.enabled === false
-
-    audioTracks.forEach((track) => {
-      track.enabled = muted
+    const next = !useMeetingStore.getState().isAudioMuted // next muted state
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = !next
     })
-
-    setAudioMuted(!muted)
+    setAudioMuted(next)
   }
 
   function toggleVideo(): void {
-    if (!streamRef.current) return
+    const stream = streamRef.current ?? useMeetingStore.getState().localStream
+    if (!stream) return
 
-    const videoTracks = streamRef.current.getVideoTracks()
-    const off = videoTracks[0]?.enabled === false
-
-    videoTracks.forEach((track) => {
-      track.enabled = off
+    const next = !useMeetingStore.getState().isVideoOff // next video-off state
+    stream.getVideoTracks().forEach((track) => {
+      track.enabled = !next
     })
-
-    setVideoOff(!off)
+    setVideoOff(next)
   }
 
   async function startScreenShare(): Promise<void> {
