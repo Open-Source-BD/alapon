@@ -163,7 +163,7 @@ export function useWebRTC(roomId: string | null) {
           const message = JSON.parse(event.data)
           const store = useMeetingStore.getState()
           switch (message.type) {
-            case 'chat':
+            case 'chat': {
               addChatMessage({
                 id: message.id,
                 fromUid: remoteUid,
@@ -173,6 +173,25 @@ export function useWebRTC(roomId: string | null) {
                 replyTo: message.replyTo,
               })
               store.setPeerTyping(remoteUid, false)
+              // Receipt straight back to the sender on this channel. 'seen' if the
+              // chat panel is open right now, otherwise just 'delivered'.
+              try {
+                channel.send(
+                  JSON.stringify({
+                    type: 'receipt',
+                    msgId: message.id,
+                    state: store.isChatOpen ? 'seen' : 'delivered',
+                  })
+                )
+              } catch {
+                // channel may be closing — receipt is best-effort.
+              }
+              break
+            }
+            case 'receipt':
+              if (message.msgId && (message.state === 'delivered' || message.state === 'seen')) {
+                store.markReceipt(message.msgId, remoteUid, message.state)
+              }
               break
             case 'reaction':
               if (typeof message.emoji === 'string') {
@@ -467,6 +486,14 @@ export function useWebRTC(roomId: string | null) {
     [broadcast]
   )
 
+  // Used by ChatPanel to send 'seen' for backlog messages when the panel opens.
+  const sendReceipt = useCallback(
+    (msgId: string, state: 'delivered' | 'seen') => {
+      broadcast({ type: 'receipt', msgId, state })
+    },
+    [broadcast]
+  )
+
   signalingMethodsRef.current = useSignaling(
     roomId,
     {
@@ -513,5 +540,6 @@ export function useWebRTC(roomId: string | null) {
     sendTyping,
     sendMessageReaction,
     sendMessageDelete,
+    sendReceipt,
   }
 }

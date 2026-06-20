@@ -36,6 +36,7 @@ export function MeetingRoom() {
     sendTyping,
     sendMessageReaction,
     sendMessageDelete,
+    sendReceipt,
   } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -165,6 +166,7 @@ export function MeetingRoom() {
               sendTyping={sendTyping}
               sendMessageReaction={sendMessageReaction}
               sendMessageDelete={sendMessageDelete}
+              sendReceipt={sendReceipt}
             />
             ) : (
               <ParticipantsPanel />

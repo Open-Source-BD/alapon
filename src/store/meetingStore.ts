@@ -31,6 +31,8 @@ export interface ChatMessage {
   reactions?: Record<string, string[]> // emoji -> uids who reacted
   replyTo?: ReplyRef
   deleted?: boolean
+  deliveredTo?: string[] // uids that acked delivery (own messages)
+  seenBy?: string[] // uids that have seen it (own messages)
 }
 
 export interface Reaction {
@@ -112,6 +114,7 @@ export interface MeetingState {
   setPeerTyping: (uid: string, typing: boolean) => void
   toggleMessageReaction: (msgId: string, emoji: string, uid: string) => void
   setMessageDeleted: (msgId: string) => void
+  markReceipt: (msgId: string, uid: string, state: 'delivered' | 'seen') => void
 
   // Toasts (transient user feedback)
   toasts: Toast[]
@@ -294,6 +297,18 @@ export const useMeetingStore = create<MeetingState>()(
           msg.deleted = true
           msg.text = ''
           msg.reactions = {}
+        }
+      }),
+
+    markReceipt: (msgId: string, uid: string, state: 'delivered' | 'seen') =>
+      set((s) => {
+        const msg = s.chatMessages.find((m) => m.id === msgId)
+        if (!msg) return
+        if (!msg.deliveredTo) msg.deliveredTo = []
+        if (!msg.deliveredTo.includes(uid)) msg.deliveredTo.push(uid)
+        if (state === 'seen') {
+          if (!msg.seenBy) msg.seenBy = []
+          if (!msg.seenBy.includes(uid)) msg.seenBy.push(uid)
         }
       }),
 

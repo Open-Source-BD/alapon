@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, X, Smile, CornerUpLeft, Copy, Trash2, SmilePlus } from 'lucide-react'
+import { Send, X, Smile, CornerUpLeft, Copy, Trash2, SmilePlus, Check, CheckCheck } from 'lucide-react'
 import { useMeetingStore, type ChatMessage, type ReplyRef } from '@/store/meetingStore'
 import { EmojiPicker } from '../EmojiPicker'
 import { REACTION_EMOJIS } from '@/lib/emoji'
@@ -12,6 +12,17 @@ interface ChatPanelProps {
   sendTyping: (typing: boolean) => void
   sendMessageReaction: (msgId: string, emoji: string) => void
   sendMessageDelete: (msgId: string) => void
+  sendReceipt: (msgId: string, state: 'delivered' | 'seen') => void
+}
+
+// ✓ sent · ✓✓ delivered to everyone · ✓✓(accent) seen by everyone.
+function ReceiptTicks({ msg, peerCount }: { msg: ChatMessage; peerCount: number }) {
+  if (peerCount === 0) return <Check className="h-3 w-3 text-muted" />
+  const seen = (msg.seenBy?.length ?? 0) >= peerCount
+  const delivered = (msg.deliveredTo?.length ?? 0) >= peerCount
+  if (seen) return <CheckCheck className="h-3 w-3 text-accent" />
+  if (delivered) return <CheckCheck className="h-3 w-3 text-muted" />
+  return <Check className="h-3 w-3 text-muted" />
 }
 
 const URL_RE = /(https?:\/\/[^\s]+)/g
@@ -41,13 +52,14 @@ interface BubbleProps {
   msg: ChatMessage
   isOwn: boolean
   localUid: string
+  peerCount: number
   onReply: (m: ChatMessage) => void
   onReact: (msgId: string, emoji: string) => void
   onDelete: (msgId: string) => void
   onCopy: (text: string) => void
 }
 
-function MessageBubble({ msg, isOwn, localUid, onReply, onReact, onDelete, onCopy }: BubbleProps) {
+function MessageBubble({ msg, isOwn, localUid, peerCount, onReply, onReact, onDelete, onCopy }: BubbleProps) {
   const [reactOpen, setReactOpen] = useState(false)
 
   const time = new Date(msg.timestamp).toLocaleTimeString([], {
@@ -62,6 +74,7 @@ function MessageBubble({ msg, isOwn, localUid, onReply, onReact, onDelete, onCop
           {isOwn ? 'You' : msg.fromName}
         </span>
         <span className="text-xs text-muted">{time}</span>
+        {isOwn && !msg.deleted && <ReceiptTicks msg={msg} peerCount={peerCount} />}
       </div>
 
       {/* Quoted reply */}
@@ -165,6 +178,7 @@ export function ChatPanel({
   sendTyping,
   sendMessageReaction,
   sendMessageDelete,
+  sendReceipt,
 }: ChatPanelProps) {
   const [messageText, setMessageText] = useState('')
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -173,6 +187,7 @@ export function ChatPanel({
   const inputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const isTypingRef = useRef(false)
+  const seenSentRef = useRef<Set<string>>(new Set())
 
   const chatMessages = useMeetingStore((s) => s.chatMessages)
   const localUid = useMeetingStore((s) => s.localUid)
@@ -181,9 +196,22 @@ export function ChatPanel({
   const toggleChat = useMeetingStore((s) => s.toggleChat)
   const addToast = useMeetingStore((s) => s.addToast)
 
+  const peerCount = Object.keys(peers).length
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
+
+  // The panel only mounts while open, so any others' message visible here counts
+  // as seen — send a 'seen' receipt once per message.
+  useEffect(() => {
+    for (const m of chatMessages) {
+      if (m.fromUid !== localUid && !m.deleted && !seenSentRef.current.has(m.id)) {
+        seenSentRef.current.add(m.id)
+        sendReceipt(m.id, 'seen')
+      }
+    }
+  }, [chatMessages, localUid, sendReceipt])
 
   useEffect(() => {
     return () => {
@@ -283,6 +311,7 @@ export function ChatPanel({
                 msg={msg}
                 isOwn={msg.fromUid === localUid}
                 localUid={localUid}
+                peerCount={peerCount}
                 onReply={handleReply}
                 onReact={sendMessageReaction}
                 onDelete={sendMessageDelete}
