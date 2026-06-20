@@ -21,6 +21,7 @@ export function MeetingRoom() {
   const peers = useMeetingStore((s) => s.peers)
   const localUid = useMeetingStore((s) => s.localUid)
   const presentingUid = useMeetingStore((s) => s.presentingUid)
+  const isRecording = useMeetingStore((s) => s.isRecording)
   const signalingError = useMeetingStore((s) => s.signalingError)
   const setSignalingError = useMeetingStore((s) => s.setSignalingError)
   const addToast = useMeetingStore((s) => s.addToast)
@@ -156,6 +157,12 @@ export function MeetingRoom() {
               {presentingUid === localUid
                 ? 'You are presenting'
                 : `${peers[presentingUid]?.name || 'Someone'} is presenting`}
+            </span>
+          )}
+          {isRecording && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger whitespace-nowrap">
+              <span className="h-2 w-2 rounded-full bg-danger animate-pulse" />
+              REC
             </span>
           )}
         </div>

@@ -12,9 +12,11 @@ import {
   Smile,
   LayoutGrid,
   PictureInPicture2,
+  Circle,
 } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useMediaStream } from '@/hooks/useMediaStream'
+import { useRecording } from '@/hooks/useRecording'
 import { REACTION_EMOJIS } from '@/lib/emoji'
 import { cn } from '@/lib/utils'
 
@@ -102,6 +104,9 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
   const addToast = useMeetingStore((s) => s.addToast)
 
   const mediaStream = useMediaStream()
+  const isRecording = useMeetingStore((s) => s.isRecording)
+  const { startRecording, stopRecording } = useRecording()
+  const canRecord = typeof MediaRecorder !== 'undefined'
   const [reactionsOpen, setReactionsOpen] = useState(false)
 
   // Gate screen share on actual browser support, not viewport width. getDisplayMedia
@@ -277,6 +282,17 @@ export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenSh
         {canPiP && (
           <ControlButton onClick={handlePiP} label="Picture-in-Picture" accent="blue">
             <PictureInPicture2 className="w-5 h-5" />
+          </ControlButton>
+        )}
+
+        {canRecord && (
+          <ControlButton
+            onClick={() => (isRecording ? stopRecording() : startRecording())}
+            label={isRecording ? 'Stop recording' : 'Record meeting (saves to your device)'}
+            active={isRecording}
+            accent="red"
+          >
+            <Circle className={cn('w-5 h-5', isRecording && 'fill-current')} />
           </ControlButton>
         )}
 

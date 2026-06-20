@@ -74,10 +74,14 @@ export interface MeetingState {
   isVideoOff: boolean
   isScreenSharing: boolean
   isHandRaised: boolean
+  isRecording: boolean
+  videoEffect: 'none' | 'blur'
   setLocalStream: (stream: MediaStream | null) => void
   setAudioMuted: (muted: boolean) => void
   setVideoOff: (off: boolean) => void
   setScreenSharing: (sharing: boolean) => void
+  setRecording: (recording: boolean) => void
+  setVideoEffect: (effect: 'none' | 'blur') => void
   toggleHandRaise: () => void
 
   // Peers
@@ -150,6 +154,8 @@ const initialState = {
   isAudioMuted: false,
   isVideoOff: false,
   isScreenSharing: false,
+  isRecording: false,
+  videoEffect: 'none' as 'none' | 'blur',
   isHandRaised: false,
   peers: {},
   activeSpeakerUid: null,
@@ -187,6 +193,8 @@ export const useMeetingStore = create<MeetingState>()(
     setAudioMuted: (muted: boolean) => set({ isAudioMuted: muted }),
     setVideoOff: (off: boolean) => set({ isVideoOff: off }),
     setScreenSharing: (sharing: boolean) => set({ isScreenSharing: sharing }),
+    setRecording: (recording: boolean) => set({ isRecording: recording }),
+    setVideoEffect: (effect: 'none' | 'blur') => set({ videoEffect: effect }),
     toggleHandRaise: () =>
       set((state) => {
         state.isHandRaised = !state.isHandRaised
