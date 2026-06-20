@@ -20,6 +20,10 @@ import { cn } from '@/lib/utils'
 interface ControlBarProps {
   onLeave: () => void
   onReaction: (emoji: string) => void
+  // Screen share is owned by MeetingRoom's useWebRTC instance (it holds the peer
+  // senders + data channel). ControlBar just triggers it.
+  startScreenShare: () => Promise<void>
+  stopScreenShare: () => Promise<void>
 }
 
 interface ControlButtonProps {
@@ -79,7 +83,7 @@ function ControlButton({
   )
 }
 
-export function ControlBar({ onLeave, onReaction }: ControlBarProps) {
+export function ControlBar({ onLeave, onReaction, startScreenShare, stopScreenShare }: ControlBarProps) {
   const isAudioMuted = useMeetingStore((s) => s.isAudioMuted)
   const isVideoOff = useMeetingStore((s) => s.isVideoOff)
   const isScreenSharing = useMeetingStore((s) => s.isScreenSharing)
@@ -134,9 +138,9 @@ export function ControlBar({ onLeave, onReaction }: ControlBarProps) {
   const handleToggleScreenShare = async () => {
     try {
       if (isScreenSharing) {
-        await mediaStream.stopScreenShare()
+        await stopScreenShare()
       } else {
-        await mediaStream.startScreenShare()
+        await startScreenShare()
       }
     } catch (error) {
       console.error('Screen share error:', error)

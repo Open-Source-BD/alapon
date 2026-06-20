@@ -3,6 +3,8 @@ import { immer } from 'zustand/middleware/immer'
 
 export type Phase = 'idle' | 'prejoin' | 'joining' | 'inmeeting' | 'left'
 
+export type ConnectionQuality = 'good' | 'fair' | 'poor'
+
 export interface PeerState {
   uid: string
   name: string
@@ -11,6 +13,13 @@ export interface PeerState {
   isVideoOff: boolean
   isHandRaised: boolean
   connectionState: RTCPeerConnectionState | null
+  quality: ConnectionQuality
+}
+
+export interface ReplyRef {
+  id: string
+  fromName: string
+  text: string
 }
 
 export interface ChatMessage {
@@ -19,6 +28,12 @@ export interface ChatMessage {
   fromName: string
   text: string
   timestamp: number
+  reactions?: Record<string, string[]> // emoji -> uids who reacted
+  replyTo?: ReplyRef
+  deleted?: boolean
+  deliveredTo?: string[] // uids that acked delivery (own messages)
+  seenBy?: string[] // uids that have seen it (own messages)
+  file?: { name: string; type: string; size: number; url: string } // shared file/image
 }
 
 export interface Reaction {
@@ -86,6 +101,10 @@ export interface MeetingState {
   layout: Layout
   setLayout: (layout: Layout) => void
 
+  // Screen sharing: who is currently presenting (local uid or a peer's).
+  presentingUid: string | null
+  setPresenting: (uid: string | null) => void
+
   // Reactions (ephemeral floating emoji)
   reactions: Reaction[]
   addReaction: (uid: string, emoji: string, id?: string) => void
@@ -98,6 +117,9 @@ export interface MeetingState {
   addChatMessage: (message: ChatMessage) => void
   clearChatMessages: () => void
   setPeerTyping: (uid: string, typing: boolean) => void
+  toggleMessageReaction: (msgId: string, emoji: string, uid: string) => void
+  setMessageDeleted: (msgId: string) => void
+  markReceipt: (msgId: string, uid: string, state: 'delivered' | 'seen') => void
 
   // Toasts (transient user feedback)
   toasts: Toast[]
@@ -134,6 +156,7 @@ const initialState = {
   isChatOpen: false,
   isParticipantsOpen: false,
   pinnedUid: null,
+  presentingUid: null,
   layout: 'auto' as Layout,
   reactions: [] as Reaction[],
   chatMessages: [],
@@ -180,6 +203,7 @@ export const useMeetingStore = create<MeetingState>()(
             isVideoOff: false,
             isHandRaised: false,
             connectionState: null,
+            quality: 'good',
           }
         }
       }),
@@ -189,6 +213,7 @@ export const useMeetingStore = create<MeetingState>()(
         delete state.peers[uid]
         delete state.peersTyping[uid]
         if (state.pinnedUid === uid) state.pinnedUid = null
+        if (state.presentingUid === uid) state.presentingUid = null
       }),
 
     updatePeer: (uid: string, patch: Partial<PeerState>) =>
@@ -223,6 +248,8 @@ export const useMeetingStore = create<MeetingState>()(
       }),
 
     setPinned: (uid: string | null) => set({ pinnedUid: uid }),
+
+    setPresenting: (uid: string | null) => set({ presentingUid: uid }),
     setLayout: (layout: Layout) => set({ layout }),
 
     addReaction: (uid: string, emoji: string, id?: string) =>
@@ -256,6 +283,43 @@ export const useMeetingStore = create<MeetingState>()(
       }),
 
     clearChatMessages: () => set({ chatMessages: [], unreadChatCount: 0 }),
+
+    toggleMessageReaction: (msgId: string, emoji: string, uid: string) =>
+      set((state) => {
+        const msg = state.chatMessages.find((m) => m.id === msgId)
+        if (!msg) return
+        if (!msg.reactions) msg.reactions = {}
+        const list = msg.reactions[emoji] ?? []
+        if (list.includes(uid)) {
+          const next = list.filter((u) => u !== uid)
+          if (next.length) msg.reactions[emoji] = next
+          else delete msg.reactions[emoji]
+        } else {
+          msg.reactions[emoji] = [...list, uid]
+        }
+      }),
+
+    setMessageDeleted: (msgId: string) =>
+      set((state) => {
+        const msg = state.chatMessages.find((m) => m.id === msgId)
+        if (msg) {
+          msg.deleted = true
+          msg.text = ''
+          msg.reactions = {}
+        }
+      }),
+
+    markReceipt: (msgId: string, uid: string, state: 'delivered' | 'seen') =>
+      set((s) => {
+        const msg = s.chatMessages.find((m) => m.id === msgId)
+        if (!msg) return
+        if (!msg.deliveredTo) msg.deliveredTo = []
+        if (!msg.deliveredTo.includes(uid)) msg.deliveredTo.push(uid)
+        if (state === 'seen') {
+          if (!msg.seenBy) msg.seenBy = []
+          if (!msg.seenBy.includes(uid)) msg.seenBy.push(uid)
+        }
+      }),
 
     addToast: (message: string, type: ToastType = 'info') =>
       set((state) => {

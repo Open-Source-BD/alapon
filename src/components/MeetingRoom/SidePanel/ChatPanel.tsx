@@ -1,20 +1,42 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, X, Smile } from 'lucide-react'
-import { useMeetingStore } from '@/store/meetingStore'
+import { Send, X, Smile, CornerUpLeft, Copy, Trash2, SmilePlus, Check, CheckCheck, Paperclip, FileText, Download } from 'lucide-react'
+import { useMeetingStore, type ChatMessage, type ReplyRef } from '@/store/meetingStore'
+import { EmojiPicker } from '../EmojiPicker'
 import { REACTION_EMOJIS } from '@/lib/emoji'
+import { cn } from '@/lib/utils'
 
 interface ChatPanelProps {
   // Provided by MeetingRoom's single useWebRTC instance so chat uses the same
   // peer connections as the media (no second WebRTC stack).
-  sendChatMessage: (text: string) => void
+  sendChatMessage: (text: string, replyTo?: ReplyRef) => void
   sendTyping: (typing: boolean) => void
+  sendMessageReaction: (msgId: string, emoji: string) => void
+  sendMessageDelete: (msgId: string) => void
+  sendReceipt: (msgId: string, state: 'delivered' | 'seen') => void
+  sendFile: (file: File) => void
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// ✓ sent · ✓✓ delivered to everyone · ✓✓(accent) seen by everyone.
+function ReceiptTicks({ msg, peerCount }: { msg: ChatMessage; peerCount: number }) {
+  if (peerCount === 0) return <Check className="h-3 w-3 text-muted" />
+  const seen = (msg.seenBy?.length ?? 0) >= peerCount
+  const delivered = (msg.deliveredTo?.length ?? 0) >= peerCount
+  if (seen) return <CheckCheck className="h-3 w-3 text-accent" />
+  if (delivered) return <CheckCheck className="h-3 w-3 text-muted" />
+  return <Check className="h-3 w-3 text-muted" />
 }
 
 const URL_RE = /(https?:\/\/[^\s]+)/g
 
-// Render message text with clickable links. Plain string segments stay as text.
-// split() keeps the captured URLs as separate segments; test each with a
-// non-global regex (a /g regex's lastIndex makes .test() stateful/unreliable).
+// Render message text with clickable links. split() keeps captured URLs as
+// separate segments; test each with a non-global regex (a /g regex's lastIndex
+// makes .test() stateful/unreliable).
 function linkify(text: string) {
   return text.split(URL_RE).map((part, i) =>
     /^https?:\/\//.test(part) ? (
@@ -33,25 +55,204 @@ function linkify(text: string) {
   )
 }
 
-export function ChatPanel({ sendChatMessage, sendTyping }: ChatPanelProps) {
+interface BubbleProps {
+  msg: ChatMessage
+  isOwn: boolean
+  localUid: string
+  peerCount: number
+  onReply: (m: ChatMessage) => void
+  onReact: (msgId: string, emoji: string) => void
+  onDelete: (msgId: string) => void
+  onCopy: (text: string) => void
+}
+
+function MessageBubble({ msg, isOwn, localUid, peerCount, onReply, onReact, onDelete, onCopy }: BubbleProps) {
+  const [reactOpen, setReactOpen] = useState(false)
+
+  const time = new Date(msg.timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+  return (
+    <div className="group relative flex flex-col gap-1">
+      <div className="flex items-baseline gap-2">
+        <span className="text-xs font-semibold text-accent">
+          {isOwn ? 'You' : msg.fromName}
+        </span>
+        <span className="text-xs text-muted">{time}</span>
+        {isOwn && !msg.deleted && <ReceiptTicks msg={msg} peerCount={peerCount} />}
+      </div>
+
+      {/* Quoted reply */}
+      {msg.replyTo && (
+        <div className="rounded border-l-2 border-accent/60 bg-elevated/60 px-2 py-1 text-xs text-muted">
+          <span className="font-medium text-accent">{msg.replyTo.fromName}</span>
+          <span className="ml-1 line-clamp-2">{msg.replyTo.text || '[deleted]'}</span>
+        </div>
+      )}
+
+      {msg.deleted ? (
+        <p className="text-sm italic text-muted">🚫 This message was deleted</p>
+      ) : msg.file ? (
+        msg.file.type.startsWith('image/') ? (
+          <a href={msg.file.url} target="_blank" rel="noopener noreferrer">
+            <img
+              src={msg.file.url}
+              alt={msg.file.name}
+              className="max-h-48 max-w-full rounded-lg border border-border object-cover"
+            />
+          </a>
+        ) : (
+          <a
+            href={msg.file.url}
+            download={msg.file.name}
+            className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-sm hover:bg-border"
+          >
+            <FileText className="h-5 w-5 shrink-0 text-accent" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-text">{msg.file.name}</span>
+              <span className="text-xs text-muted">{formatBytes(msg.file.size)}</span>
+            </span>
+            <Download className="h-4 w-4 shrink-0 text-muted" />
+          </a>
+        )
+      ) : (
+        <p className="text-sm text-text break-words whitespace-pre-wrap">{linkify(msg.text)}</p>
+      )}
+
+      {/* Reaction chips */}
+      {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-0.5">
+          {Object.entries(msg.reactions).map(([emoji, uids]) => (
+            <button
+              key={emoji}
+              onClick={() => onReact(msg.id, emoji)}
+              className={cn(
+                'flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs transition-colors',
+                uids.includes(localUid)
+                  ? 'border-accent bg-accent/20 text-text'
+                  : 'border-border bg-elevated text-muted hover:bg-border'
+              )}
+            >
+              <span>{emoji}</span>
+              <span>{uids.length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Hover actions */}
+      {!msg.deleted && (
+        <div className="absolute -top-2 right-0 hidden items-center gap-0.5 rounded-md border border-border bg-elevated px-1 py-0.5 shadow-lg group-hover:flex">
+          <div className="relative">
+            <button
+              onClick={() => setReactOpen((o) => !o)}
+              aria-label="React to message"
+              className="rounded p-1 text-muted hover:text-text hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <SmilePlus className="h-4 w-4" />
+            </button>
+            {reactOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setReactOpen(false)} aria-hidden />
+                <div className="absolute bottom-full right-0 z-30 mb-1 flex gap-0.5 rounded-full border border-border bg-elevated px-1.5 py-1 shadow-xl">
+                  {REACTION_EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => {
+                        onReact(msg.id, e)
+                        setReactOpen(false)
+                      }}
+                      aria-label={`React ${e}`}
+                      className="rounded-full px-1 text-lg hover:scale-125 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => onReply(msg)}
+            aria-label="Reply to message"
+            className="rounded p-1 text-muted hover:text-text hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <CornerUpLeft className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onCopy(msg.text)}
+            aria-label="Copy message"
+            className="rounded p-1 text-muted hover:text-text hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+          {isOwn && (
+            <button
+              onClick={() => onDelete(msg.id)}
+              aria-label="Delete message"
+              className="rounded p-1 text-muted hover:text-danger hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ChatPanel({
+  sendChatMessage,
+  sendTyping,
+  sendMessageReaction,
+  sendMessageDelete,
+  sendReceipt,
+  sendFile,
+}: ChatPanelProps) {
   const [messageText, setMessageText] = useState('')
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<ReplyRef | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Grow the textarea with its content, up to a cap, then scroll.
+  const autoGrow = () => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const isTypingRef = useRef(false)
+  const seenSentRef = useRef<Set<string>>(new Set())
 
   const chatMessages = useMeetingStore((s) => s.chatMessages)
   const localUid = useMeetingStore((s) => s.localUid)
   const peers = useMeetingStore((s) => s.peers)
   const peersTyping = useMeetingStore((s) => s.peersTyping)
   const toggleChat = useMeetingStore((s) => s.toggleChat)
+  const addToast = useMeetingStore((s) => s.addToast)
+
+  const peerCount = Object.keys(peers).length
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
-  // Tell peers we stopped typing if the panel unmounts mid-compose.
+  // The panel only mounts while open, so any others' message visible here counts
+  // as seen — send a 'seen' receipt once per message.
+  useEffect(() => {
+    for (const m of chatMessages) {
+      if (m.fromUid !== localUid && !m.deleted && !seenSentRef.current.has(m.id)) {
+        seenSentRef.current.add(m.id)
+        sendReceipt(m.id, 'seen')
+      }
+    }
+  }, [chatMessages, localUid, sendReceipt])
+
   useEffect(() => {
     return () => {
       if (isTypingRef.current) sendTyping(false)
@@ -78,10 +279,12 @@ export function ChatPanel({ sendChatMessage, sendTyping }: ChatPanelProps) {
 
   const handleSendMessage = () => {
     if (!messageText.trim()) return
-    sendChatMessage(messageText)
+    sendChatMessage(messageText, replyingTo ?? undefined)
     setMessageText('')
+    setReplyingTo(null)
     setTyping(false)
     clearTimeout(typingTimeoutRef.current)
+    if (inputRef.current) inputRef.current.style.height = 'auto'
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -97,7 +300,20 @@ export function ChatPanel({ sendChatMessage, sendTyping }: ChatPanelProps) {
     inputRef.current?.focus()
   }
 
-  // Who's typing (excluding ourselves).
+  const handleReply = (m: ChatMessage) => {
+    setReplyingTo({ id: m.id, fromName: m.fromUid === localUid ? 'You' : m.fromName, text: m.text })
+    inputRef.current?.focus()
+  }
+
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      addToast('Copied to clipboard', 'success')
+    } catch {
+      addToast('Could not copy', 'error')
+    }
+  }
+
   const typingNames = Object.keys(peersTyping)
     .filter((uid) => peersTyping[uid] && uid !== localUid)
     .map((uid) => peers[uid]?.name || 'Someone')
@@ -131,20 +347,17 @@ export function ChatPanel({ sendChatMessage, sendTyping }: ChatPanelProps) {
         ) : (
           <>
             {chatMessages.map((msg) => (
-              <div key={msg.id} className="flex flex-col gap-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-semibold text-accent">
-                    {msg.fromUid === localUid ? 'You' : msg.fromName}
-                  </span>
-                  <span className="text-xs text-muted">
-                    {new Date(msg.timestamp).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
-                <p className="text-sm text-text break-words">{linkify(msg.text)}</p>
-              </div>
+              <MessageBubble
+                key={msg.id}
+                msg={msg}
+                isOwn={msg.fromUid === localUid}
+                localUid={localUid}
+                peerCount={peerCount}
+                onReply={handleReply}
+                onReact={sendMessageReaction}
+                onDelete={sendMessageDelete}
+                onCopy={handleCopy}
+              />
             ))}
             <div ref={messagesEndRef} />
           </>
@@ -153,6 +366,23 @@ export function ChatPanel({ sendChatMessage, sendTyping }: ChatPanelProps) {
 
       {/* Typing indicator */}
       <div className="h-5 px-4 text-xs text-muted">{typingLabel}</div>
+
+      {/* Reply bar */}
+      {replyingTo && (
+        <div className="mx-4 mb-1 flex items-center justify-between gap-2 rounded border-l-2 border-accent bg-elevated px-2 py-1 text-xs">
+          <div className="min-w-0">
+            <span className="font-medium text-accent">Replying to {replyingTo.fromName}</span>
+            <p className="truncate text-muted">{replyingTo.text}</p>
+          </div>
+          <button
+            onClick={() => setReplyingTo(null)}
+            aria-label="Cancel reply"
+            className="rounded p-0.5 text-muted hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div className="border-t border-border p-4">
         <div className="flex gap-2">
@@ -167,29 +397,40 @@ export function ChatPanel({ sendChatMessage, sendTyping }: ChatPanelProps) {
             {emojiOpen && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setEmojiOpen(false)} aria-hidden />
-                <div className="absolute bottom-full left-0 z-30 mb-2 grid grid-cols-4 gap-1 rounded-lg border border-border bg-elevated p-2 shadow-xl">
-                  {REACTION_EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => insertEmoji(emoji)}
-                      aria-label={`Insert ${emoji}`}
-                      className="rounded px-1 text-xl hover:bg-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+                <div className="absolute bottom-full left-0 z-30 mb-2">
+                  <EmojiPicker onSelect={insertEmoji} />
                 </div>
               </>
             )}
           </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Attach a file"
+            className="p-2 rounded-lg bg-elevated hover:bg-border text-muted hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
           <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) sendFile(file)
+              e.target.value = ''
+            }}
+          />
+          <textarea
             ref={inputRef}
-            type="text"
+            rows={1}
             value={messageText}
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={(e) => {
+              handleChange(e.target.value)
+              autoGrow()
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            className="flex-1 bg-elevated text-white text-sm rounded-lg px-3 py-2 border border-border focus:outline-none focus:border-accent"
+            className="flex-1 resize-none bg-elevated text-white text-sm rounded-lg px-3 py-2 border border-border focus:outline-none focus:border-accent"
           />
           <button
             onClick={handleSendMessage}

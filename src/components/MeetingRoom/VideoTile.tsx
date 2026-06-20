@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { MicOff, Loader2, Hand, Pin, PinOff } from 'lucide-react'
-import { useMeetingStore } from '@/store/meetingStore'
+import { MicOff, Loader2, Hand, Pin, PinOff, MonitorUp } from 'lucide-react'
+import { useMeetingStore, type ConnectionQuality } from '@/store/meetingStore'
+import { SignalBars } from './SignalBars'
 import { cn } from '@/lib/utils'
 
 interface VideoTileProps {
@@ -17,6 +18,10 @@ interface VideoTileProps {
   /** uid this tile represents — enables the pin control. */
   uid?: string
   pinnable?: boolean
+  /** Remote connection quality (omit for the local tile). */
+  quality?: ConnectionQuality
+  /** This tile is showing a shared screen — letterbox it and don't mirror. */
+  isScreen?: boolean
 }
 
 export function VideoTile({
@@ -31,6 +36,8 @@ export function VideoTile({
   compact,
   uid,
   pinnable,
+  quality,
+  isScreen,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const pinnedUid = useMeetingStore((s) => s.pinnedUid)
@@ -78,14 +85,18 @@ export function VideoTile({
           playsInline
           muted={isLocal}
           className={cn(
-            'w-full h-full object-cover',
-            isLocal && 'scale-x-[-1]', // Mirror local video
-            isVideoOff && 'hidden'
+            'w-full h-full',
+            // Screens are letterboxed (object-contain) and never mirrored; camera
+            // tiles fill (object-cover) and the local camera is mirrored.
+            isScreen ? 'object-contain bg-black' : 'object-cover',
+            isLocal && !isScreen && 'scale-x-[-1]',
+            // A shared screen stays visible even if the camera was off.
+            isVideoOff && !isScreen && 'hidden'
           )}
         />
       )}
 
-      {(isVideoOff || !stream) && (
+      {((isVideoOff && !isScreen) || !stream) && (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-elevated to-surface">
           <div className="text-center">
             {isConnecting ? (
@@ -121,6 +132,14 @@ export function VideoTile({
         </div>
       )}
 
+      {/* Presenting badge */}
+      {isScreen && !compact && (
+        <div className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-ink shadow-lg">
+          <MonitorUp className="w-3.5 h-3.5" />
+          Presenting
+        </div>
+      )}
+
       {/* Raised hand */}
       {isHandRaised && (
         <div className="absolute top-2 left-2 flex items-center justify-center rounded-full bg-warn p-1.5 shadow-lg">
@@ -150,11 +169,12 @@ export function VideoTile({
               {isLocal ? `${name} (You)` : name}
             </p>
           </div>
-          {isAudioMuted && (
-            <div className="ml-2 flex-shrink-0">
+          <div className="ml-2 flex flex-shrink-0 items-center gap-2">
+            {!isLocal && quality && quality !== 'good' && <SignalBars quality={quality} />}
+            {isAudioMuted && (
               <MicOff className={cn('text-danger', compact ? 'w-3 h-3' : 'w-4 h-4')} />
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

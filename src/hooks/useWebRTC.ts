@@ -8,10 +8,42 @@ import { useMeetingStore } from '@/store/meetingStore'
 import { useSignaling } from './useSignaling'
 import type { SignalingCallbacks } from './useSignaling'
 import { useActiveSpeaker } from './useActiveSpeaker'
+import { useConnectionQuality } from './useConnectionQuality'
 
 interface PeerConnection {
   pc: RTCPeerConnection
   dataChannel: RTCDataChannel | null
+}
+
+// ── File transfer over the data channel ─────────────────────────────────────
+// Files are chunked and sent as base64-in-JSON (reuses the string router; ~33%
+// overhead, simplest correct path). Ordered data channel guarantees meta →
+// chunks → complete arrive in order.
+const FILE_CHUNK_SIZE = 16 * 1024 // 16 KB per chunk
+const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25 MB cap
+const DRAIN_THRESHOLD = 1 * 1024 * 1024 // pause sending when a channel buffers > 1MB
+
+interface IncomingFile {
+  name: string
+  type: string
+  size: number
+  total: number
+  chunks: string[]
+  received: number
+}
+
+function abToBase64(buf: ArrayBuffer): string {
+  let binary = ''
+  const bytes = new Uint8Array(buf)
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return arr
 }
 
 export function useWebRTC(roomId: string | null) {
@@ -19,6 +51,9 @@ export function useWebRTC(roomId: string | null) {
   const candidateQueuesRef = useRef<Map<string, RTCIceCandidateInit[]>>(
     new Map()
   )
+  const incomingFilesRef = useRef<Map<string, IncomingFile>>(new Map())
+  const screenStreamRef = useRef<MediaStream | null>(null)
+  const cameraVideoTrackRef = useRef<MediaStreamTrack | null>(null)
   const remoteOfferStateRef = useRef<Map<string, boolean>>(new Map())
   const signalingMethodsRef = useRef<ReturnType<typeof useSignaling> | null>(null)
 
@@ -37,6 +72,10 @@ export function useWebRTC(roomId: string | null) {
   // about. useWebRTC is the only place PCs are created, so it must register them
   // here; otherwise the detector's map stays empty and the feature is dead.
   const { registerPeerConnection, unregisterPeerConnection } = useActiveSpeaker()
+  const {
+    registerPeerConnection: registerQualityPc,
+    unregisterPeerConnection: unregisterQualityPc,
+  } = useConnectionQuality()
 
   const createPeerConnection = useCallback(
     (remoteUid: string): RTCPeerConnection => {
@@ -151,6 +190,14 @@ export function useWebRTC(roomId: string | null) {
     (remoteUid: string, channel: RTCDataChannel) => {
       channel.onopen = () => {
         console.log('Data channel opened:', remoteUid)
+        // Tell a late joiner we're already presenting so they spotlight us.
+        if (useMeetingStore.getState().isScreenSharing) {
+          try {
+            channel.send(JSON.stringify({ type: 'presenting', on: true }))
+          } catch {
+            // best-effort
+          }
+        }
       }
 
       channel.onmessage = (event) => {
@@ -158,16 +205,77 @@ export function useWebRTC(roomId: string | null) {
           const message = JSON.parse(event.data)
           const store = useMeetingStore.getState()
           switch (message.type) {
-            case 'chat':
+            case 'chat': {
               addChatMessage({
                 id: message.id,
                 fromUid: remoteUid,
                 fromName: message.fromName,
                 text: message.text,
                 timestamp: message.timestamp,
+                replyTo: message.replyTo,
               })
               store.setPeerTyping(remoteUid, false)
+              // Receipt straight back to the sender on this channel. 'seen' if the
+              // chat panel is open right now, otherwise just 'delivered'.
+              try {
+                channel.send(
+                  JSON.stringify({
+                    type: 'receipt',
+                    msgId: message.id,
+                    state: store.isChatOpen ? 'seen' : 'delivered',
+                  })
+                )
+              } catch {
+                // channel may be closing — receipt is best-effort.
+              }
               break
+            }
+            case 'receipt':
+              if (message.msgId && (message.state === 'delivered' || message.state === 'seen')) {
+                store.markReceipt(message.msgId, remoteUid, message.state)
+              }
+              break
+            case 'file-meta':
+              incomingFilesRef.current.set(message.id, {
+                name: message.name,
+                type: message.fileType || 'application/octet-stream',
+                size: message.size || 0,
+                total: message.total || 0,
+                chunks: new Array(message.total || 0),
+                received: 0,
+              })
+              break
+            case 'file-chunk': {
+              const f = incomingFilesRef.current.get(message.id)
+              if (f && typeof message.seq === 'number') {
+                f.chunks[message.seq] = message.data
+                f.received += 1
+              }
+              break
+            }
+            case 'file-complete': {
+              const f = incomingFilesRef.current.get(message.id)
+              incomingFilesRef.current.delete(message.id)
+              if (f && f.received >= f.total) {
+                const bytes = f.chunks.map(base64ToBytes)
+                const blob = new Blob(bytes as BlobPart[], { type: f.type })
+                const url = URL.createObjectURL(blob)
+                addChatMessage({
+                  id: message.id,
+                  fromUid: remoteUid,
+                  fromName: message.fromName || '',
+                  text: '',
+                  timestamp: Date.now(),
+                  file: { name: f.name, type: f.type, size: f.size, url },
+                })
+                try {
+                  channel.send(JSON.stringify({ type: 'receipt', msgId: message.id, state: store.isChatOpen ? 'seen' : 'delivered' }))
+                } catch {
+                  // best-effort
+                }
+              }
+              break
+            }
             case 'reaction':
               if (typeof message.emoji === 'string') {
                 store.addReaction(remoteUid, message.emoji, message.id)
@@ -176,6 +284,25 @@ export function useWebRTC(roomId: string | null) {
             case 'typing':
               store.setPeerTyping(remoteUid, !!message.typing)
               break
+            case 'presenting': {
+              const cur = store.presentingUid
+              if (message.on) store.setPresenting(remoteUid)
+              else if (cur === remoteUid) store.setPresenting(null)
+              break
+            }
+            case 'msg-reaction':
+              if (typeof message.emoji === 'string' && message.msgId) {
+                store.toggleMessageReaction(message.msgId, message.emoji, remoteUid)
+              }
+              break
+            case 'msg-delete': {
+              // Delete-for-everyone: only honor it for the sender's own message.
+              const target = store.chatMessages.find((m) => m.id === message.msgId)
+              if (target && target.fromUid === remoteUid) {
+                store.setMessageDeleted(message.msgId)
+              }
+              break
+            }
             default:
               // Unknown message type from a newer/older peer — ignore.
               break
@@ -206,6 +333,7 @@ export function useWebRTC(roomId: string | null) {
           dataChannel: null,
         })
         registerPeerConnection(remoteUid, pc)
+        registerQualityPc(remoteUid, pc)
 
         remoteOfferStateRef.current.set(remoteUid, false)
 
@@ -224,7 +352,7 @@ export function useWebRTC(roomId: string | null) {
         console.error('Failed to initiate call:', error)
       }
     },
-    [createPeerConnection, setupDataChannel, registerPeerConnection]
+    [createPeerConnection, setupDataChannel, registerPeerConnection, registerQualityPc]
   )
 
   const handleOffer = useCallback(
@@ -239,6 +367,7 @@ export function useWebRTC(roomId: string | null) {
             dataChannel: null,
           })
           registerPeerConnection(fromUid, pc)
+          registerQualityPc(fromUid, pc)
         }
 
         remoteOfferStateRef.current.set(fromUid, true)
@@ -267,7 +396,7 @@ export function useWebRTC(roomId: string | null) {
         console.error('Failed to handle offer:', error)
       }
     },
-    [createPeerConnection, registerPeerConnection]
+    [createPeerConnection, registerPeerConnection, registerQualityPc]
   )
 
   const handleAnswer = useCallback(
@@ -363,19 +492,21 @@ export function useWebRTC(roomId: string | null) {
       candidateQueuesRef.current.delete(remoteUid)
       remoteOfferStateRef.current.delete(remoteUid)
       unregisterPeerConnection(remoteUid)
+      unregisterQualityPc(remoteUid)
       removePeer(remoteUid)
     },
-    [removePeer, unregisterPeerConnection]
+    [removePeer, unregisterPeerConnection, unregisterQualityPc]
   )
 
   const sendChatMessage = useCallback(
-    (text: string) => {
+    (text: string, replyTo?: { id: string; fromName: string; text: string }) => {
       const message = {
         type: 'chat',
         id: nanoid(),
         fromName: localName,
         text,
         timestamp: Date.now(),
+        replyTo,
       }
 
       peerConnectionsRef.current.forEach((connection) => {
@@ -428,6 +559,151 @@ export function useWebRTC(roomId: string | null) {
     [broadcast]
   )
 
+  const sendMessageReaction = useCallback(
+    (msgId: string, emoji: string) => {
+      broadcast({ type: 'msg-reaction', msgId, emoji })
+      useMeetingStore.getState().toggleMessageReaction(msgId, emoji, localUid)
+    },
+    [broadcast, localUid]
+  )
+
+  const sendMessageDelete = useCallback(
+    (msgId: string) => {
+      broadcast({ type: 'msg-delete', msgId })
+      useMeetingStore.getState().setMessageDeleted(msgId)
+    },
+    [broadcast]
+  )
+
+  // Used by ChatPanel to send 'seen' for backlog messages when the panel opens.
+  const sendReceipt = useCallback(
+    (msgId: string, state: 'delivered' | 'seen') => {
+      broadcast({ type: 'receipt', msgId, state })
+    },
+    [broadcast]
+  )
+
+  const sendFile = useCallback(
+    async (file: File) => {
+      if (file.size > MAX_FILE_SIZE) {
+        useMeetingStore.getState().addToast('File too large (max 25MB)', 'error')
+        return
+      }
+      const id = nanoid()
+      const buf = await file.arrayBuffer()
+      const total = Math.max(1, Math.ceil(buf.byteLength / FILE_CHUNK_SIZE))
+
+      // Show it in our own chat immediately (local object URL).
+      addChatMessage({
+        id,
+        fromUid: localUid,
+        fromName: localName,
+        text: '',
+        timestamp: Date.now(),
+        file: { name: file.name, type: file.type, size: file.size, url: URL.createObjectURL(file) },
+      })
+
+      broadcast({
+        type: 'file-meta',
+        id,
+        name: file.name,
+        fileType: file.type,
+        size: file.size,
+        total,
+        fromName: localName,
+      })
+
+      for (let seq = 0; seq < total; seq++) {
+        const slice = buf.slice(seq * FILE_CHUNK_SIZE, (seq + 1) * FILE_CHUNK_SIZE)
+        broadcast({ type: 'file-chunk', id, seq, total, data: abToBase64(slice) })
+        // Backpressure: pause while any channel's send buffer is backed up, so a
+        // big file doesn't blow the buffer or stall the media.
+        let guard = 0
+        while (guard++ < 2000) {
+          let maxBuf = 0
+          peerConnectionsRef.current.forEach((c) => {
+            if (c.dataChannel) maxBuf = Math.max(maxBuf, c.dataChannel.bufferedAmount)
+          })
+          if (maxBuf < DRAIN_THRESHOLD) break
+          await new Promise((r) => setTimeout(r, 50))
+        }
+      }
+
+      broadcast({ type: 'file-complete', id, fromName: localName })
+    },
+    [broadcast, localUid, localName, addChatMessage]
+  )
+
+  // ── Screen share ──────────────────────────────────────────────────────────
+  // Owned here because it needs the peer senders AND the data channel. We swap
+  // the outgoing video track on every sender (replaceTrack = no renegotiation),
+  // mirror the swap into our own self-view, and broadcast a 'presenting' signal
+  // so every peer spotlights the presenter.
+  const stopScreenShare = useCallback(async () => {
+    const screenStream = screenStreamRef.current
+    const camera = cameraVideoTrackRef.current
+    const stream = useMeetingStore.getState().localStream
+
+    peerConnectionsRef.current.forEach(({ pc }) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+      if (sender && camera) sender.replaceTrack(camera).catch(() => {})
+    })
+
+    // Self-view: swap the screen track back out for the camera.
+    if (stream && screenStream) {
+      screenStream.getVideoTracks().forEach((t) => {
+        if (stream.getTracks().includes(t)) stream.removeTrack(t)
+      })
+      if (camera) stream.addTrack(camera)
+    }
+    screenStream?.getTracks().forEach((t) => t.stop())
+    screenStreamRef.current = null
+    cameraVideoTrackRef.current = null
+
+    const store = useMeetingStore.getState()
+    store.setScreenSharing(false)
+    if (store.presentingUid === localUid) store.setPresenting(null)
+    broadcast({ type: 'presenting', on: false })
+  }, [broadcast, localUid])
+
+  const startScreenShare = useCallback(async () => {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: false,
+    })
+    const screenTrack = screenStream.getVideoTracks()[0]
+    if (!screenTrack) {
+      screenStream.getTracks().forEach((t) => t.stop())
+      throw new Error('No screen track')
+    }
+    screenStreamRef.current = screenStream
+
+    const stream = useMeetingStore.getState().localStream
+    cameraVideoTrackRef.current = stream?.getVideoTracks()[0] ?? null
+
+    peerConnectionsRef.current.forEach(({ pc }) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+      if (sender) sender.replaceTrack(screenTrack).catch(() => {})
+      else if (stream) pc.addTrack(screenTrack, stream) // audio-only joiner → renegotiate
+    })
+
+    // Self-view: show the screen in our own tile.
+    if (stream && cameraVideoTrackRef.current) {
+      stream.removeTrack(cameraVideoTrackRef.current)
+      stream.addTrack(screenTrack)
+    }
+
+    const store = useMeetingStore.getState()
+    store.setScreenSharing(true)
+    store.setPresenting(localUid)
+    broadcast({ type: 'presenting', on: true })
+
+    // User clicks the browser's own "Stop sharing" bar.
+    screenTrack.onended = () => {
+      stopScreenShare()
+    }
+  }, [broadcast, localUid, stopScreenShare])
+
   signalingMethodsRef.current = useSignaling(
     roomId,
     {
@@ -472,5 +748,11 @@ export function useWebRTC(roomId: string | null) {
     sendChatMessage,
     sendReaction,
     sendTyping,
+    sendMessageReaction,
+    sendMessageDelete,
+    sendReceipt,
+    sendFile,
+    startScreenShare,
+    stopScreenShare,
   }
 }

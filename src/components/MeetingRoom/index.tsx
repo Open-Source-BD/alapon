@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Lock, Link2, Check, Users } from 'lucide-react'
+import { Lock, Link2, Check, Users, MonitorUp } from 'lucide-react'
 import { useMeetingStore } from '@/store/meetingStore'
 import { useWebRTC } from '@/hooks/useWebRTC'
 import { useMediaStream } from '@/hooks/useMediaStream'
@@ -9,6 +9,7 @@ import { ChatPanel } from './SidePanel/ChatPanel'
 import { ParticipantsPanel } from './SidePanel/ParticipantsPanel'
 import { ReactionsOverlay } from './ReactionsOverlay'
 import { Toaster } from '../Toaster'
+import { MAX_PARTICIPANTS } from '@/lib/constants'
 
 export function MeetingRoom() {
   const roomId = useMeetingStore((s) => s.roomId)
@@ -17,6 +18,8 @@ export function MeetingRoom() {
   const phase = useMeetingStore((s) => s.phase)
   const isEncrypted = useMeetingStore((s) => s.isEncrypted)
   const peers = useMeetingStore((s) => s.peers)
+  const localUid = useMeetingStore((s) => s.localUid)
+  const presentingUid = useMeetingStore((s) => s.presentingUid)
   const signalingError = useMeetingStore((s) => s.signalingError)
   const setSignalingError = useMeetingStore((s) => s.setSignalingError)
   const addToast = useMeetingStore((s) => s.addToast)
@@ -29,12 +32,23 @@ export function MeetingRoom() {
   // data channel. It also drives active-speaker detection internally. Anything
   // that needs to send chat (ChatPanel) gets it from here via props — calling
   // useWebRTC again would spin up a second, competing WebRTC stack.
-  const { sendChatMessage, sendReaction, sendTyping } = useWebRTC(roomId)
+  const {
+    sendChatMessage,
+    sendReaction,
+    sendTyping,
+    sendMessageReaction,
+    sendMessageDelete,
+    sendReceipt,
+    sendFile,
+    startScreenShare,
+    stopScreenShare,
+  } = useWebRTC(roomId)
   const mediaStream = useMediaStream()
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [linkCopied, setLinkCopied] = useState(false)
 
   const participantCount = 1 + Object.keys(peers).length
+  const nearFullToastedRef = useRef(false)
 
   useEffect(() => {
     if (phase !== 'inmeeting') {
@@ -43,6 +57,14 @@ export function MeetingRoom() {
 
     useMeetingStore.getState().setJoinedAt(Date.now())
   }, [phase])
+
+  // One-time heads-up when the room is one slot from full.
+  useEffect(() => {
+    if (participantCount >= MAX_PARTICIPANTS - 1 && !nearFullToastedRef.current) {
+      nearFullToastedRef.current = true
+      addToast(`Room is almost full (${participantCount}/${MAX_PARTICIPANTS})`, 'info')
+    }
+  }, [participantCount, addToast])
 
   const handleCopyInvite = async () => {
     try {
@@ -101,8 +123,16 @@ export function MeetingRoom() {
           <span className="text-muted">|</span>
           <span className="inline-flex items-center gap-1 text-sm text-muted whitespace-nowrap">
             <Users className="w-3.5 h-3.5" />
-            {participantCount}
+            {participantCount} / {MAX_PARTICIPANTS}
           </span>
+          {presentingUid && (
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent whitespace-nowrap">
+              <MonitorUp className="w-3.5 h-3.5" />
+              {presentingUid === localUid
+                ? 'You are presenting'
+                : `${peers[presentingUid]?.name || 'Someone'} is presenting`}
+            </span>
+          )}
         </div>
         <button
           onClick={handleCopyInvite}
@@ -135,7 +165,12 @@ export function MeetingRoom() {
             <VideoGrid />
             <ReactionsOverlay />
           </div>
-          <ControlBar onLeave={handleLeave} onReaction={sendReaction} />
+          <ControlBar
+            onLeave={handleLeave}
+            onReaction={sendReaction}
+            startScreenShare={startScreenShare}
+            stopScreenShare={stopScreenShare}
+          />
         </div>
 
         {isPanelOpen && (
@@ -144,7 +179,14 @@ export function MeetingRoom() {
                        sm:static sm:h-auto sm:w-80 sm:rounded-none sm:border-t-0 sm:border-l sm:shadow-none"
           >
             {isChatOpen ? (
-              <ChatPanel sendChatMessage={sendChatMessage} sendTyping={sendTyping} />
+              <ChatPanel
+              sendChatMessage={sendChatMessage}
+              sendTyping={sendTyping}
+              sendMessageReaction={sendMessageReaction}
+              sendMessageDelete={sendMessageDelete}
+              sendReceipt={sendReceipt}
+              sendFile={sendFile}
+            />
             ) : (
               <ParticipantsPanel />
             )}
